@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lmos_database_schema"
+version = "0.1.0"
+description = "Database ORM models for use in LMOS"
+license = { text = "apache2" }
+readme = "README.md"
+requires-python = ">=3.7"
+dependencies = [
+    "sqlalchemy",
+    "psycopg2-binary",
+]
+
+[project.urls]
+homepage = "http://lmos.io/"
+repository = "https://github.com/LMOS-IO/LMOS-database-schema"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["lmos_database_schema"]
+
+[tool.setuptools]
+package-data = { "openai_types" = ["py.typed"] }
