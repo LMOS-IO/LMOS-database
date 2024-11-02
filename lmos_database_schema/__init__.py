@@ -1,8 +1,6 @@
 from sqlalchemy import Column, String, ForeignKey, DateTime, Integer
 from sqlalchemy.orm import relationship, declarative_base
-from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy import create_engine, func
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import func
 import datetime
 import uuid
 from sqlalchemy.dialects.postgresql import UUID
@@ -16,7 +14,10 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String, unique=True, nullable=False)
     email = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    totp_secret = Column(String, nullable=True)
     api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     def __repr__(self):
         return f"<User(username='{self.username}', email='{self.email}')>"
@@ -25,23 +26,34 @@ class User(Base):
 class APIKey(Base):
     __tablename__ = 'api_keys'
 
-    key = Column(String(512), primary_key=True, unique=True, nullable=False)  # Fixed length of 64 characters
+    key_hash = Column(String(512), primary_key=True, unique=True, nullable=False)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
     user = relationship("User", back_populates="api_keys")
     usages = relationship("Usage", back_populates="api_key", cascade="all, delete-orphan")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):
-        return f"<APIKey(key='{self.key}', user_id='{self.user_id}')>"
+        return f"<APIKey(key='{self.key_hash}', user_id='{self.user_id}')>"
 
-# Endpoint table
-class Endpoint(Base):
-    __tablename__ = 'endpoint'
+# Model table
+class Model(Base):
+    __tablename__ = 'model'
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), unique=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    def __repr__(self):
+        return f"<Model(name='{self.name}')>"
+    
+# Voice type table
+class VoiceType(Base):
+    __tablename__ = 'voice_type'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(50), unique=True, nullable=False)
+    tts_usages = relationship("TTSUsage", back_populates="voice")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):
-        return f"<Endpoint(name='{self.name}')>"
+        return f"<VoiceType(name='{self.name}')>"
 
 # Base class for Usage, with polymorphism
 class Usage(Base):
@@ -49,15 +61,14 @@ class Usage(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     type = Column(String(50))
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
-    endpoint_id = Column(UUID(as_uuid=True), ForeignKey('endpoint.id'))
-    endpoint = relationship("Endpoint")
-    api_key_id = Column(String(512), ForeignKey('api_keys.key'), nullable=False)
+    model_id = Column(UUID(as_uuid=True), ForeignKey('model.id'))
+    model = relationship("Model")
+    api_key_id = Column(String(512), ForeignKey('api_keys.key_hash'), nullable=False)
     api_key = relationship("APIKey", back_populates="usages")
-    request_time = Column(DateTime(timezone=True), server_default=func.now())
     status_code = Column(Integer, nullable=False)
     
     def __repr__(self):
-        return f"<Usage(type='{self.type}', timestamp='{self.timestamp}', endpoint_id='{self.endpoint_id}', api_key_id='{self.api_key_id}', status_code='{self.status_code}')>"
+        return f"<Usage(type='{self.type}', timestamp='{self.timestamp}', model_id='{self.model_id}', api_key_id='{self.api_key_id}', status_code='{self.status_code}')>"
     
     __mapper_args__ = {
         'polymorphic_identity': 'usage',
@@ -99,7 +110,8 @@ class TTSUsage(Usage):
     __tablename__ = 'tts_usage'
     id = Column(UUID(as_uuid=True), ForeignKey('usage.id'), primary_key=True, default=uuid.uuid4)
     text_length = Column(Integer)  # Length of the text to synthesize
-    voice_type = Column(String(50))
+    voice_type = Column(UUID(as_uuid=True), ForeignKey('voice_type.id'))
+    voice = relationship("VoiceType", back_populates="tts_usages")
     audio_length = Column(Integer)  # Length of the generated audio in seconds
 
     def __repr__(self):
@@ -115,11 +127,9 @@ class ReRankerUsage(Usage):
     id = Column(UUID(as_uuid=True), ForeignKey('usage.id'), primary_key=True, default=uuid.uuid4)
     num_candidates = Column(Integer)
     selected_candidate = Column(Integer)  # Index of the selected candidate
-    rerank_time = Column(Integer)  # Time taken to rerank in milliseconds
-    score_distribution = Column(String(255))  # Score distribution for candidates
 
     def __repr__(self):
-        return f"<ReRankerUsage(num_candidates='{self.num_candidates}', selected_candidate='{self.selected_candidate}', rerank_time='{self.rerank_time}', score_distribution='{self.score_distribution}')>"
+        return f"<ReRankerUsage(num_candidates='{self.num_candidates}', selected_candidate='{self.selected_candidate}')>"
 
     __mapper_args__ = {
         'polymorphic_identity': 'reranker',
