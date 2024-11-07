@@ -5,7 +5,10 @@
 	"dockerComposeFile": "docker-compose.yml",
 	"service": "app",
 	"workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-
+	"features": {
+		"ghcr.io/devcontainers-extra/features/redis-homebrew:1": {}
+	},
+	
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
 
@@ -14,7 +17,7 @@
 	"forwardPorts": [5432],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "pip install --user -e ."
+	"postCreateCommand": "pip install --user -e . && pip install --user -r requirements_dev.txt"
 
 	// Configure tool-specific properties.
 	// "customizations": {},
