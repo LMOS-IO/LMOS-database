@@ -20,3 +20,19 @@ async def get_model_by_id(session: AsyncSession, model_id: int):
 async def get_all_models(session: AsyncSession):
     result = await session.execute(select(Model))
     return result.scalars().all()
+
+async def delete_model_by_id(session: AsyncSession, model_id: int):
+    model = await get_model_by_id(session, model_id)
+    if model:
+        await session.delete(model)
+        await session.commit()
+        return True
+    return False
+
+async def delete_model_by_name(session: AsyncSession, model_name: str):
+    model = await get_model_by_name(session, model_name)
+    if model:
+        await session.delete(model)
+        await session.commit()
+        return True
+    return False

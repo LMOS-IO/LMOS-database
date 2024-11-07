@@ -1,13 +1,14 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from redis.asyncio.client import Redis
 
 from ..tables import APIKey
 from .apikey import get_api_key_permissions
 from .model import get_model_by_name
 from .redis_access import set_api_key
 
-async def check_model_access(session: AsyncSession, key_hash: str, model_name: str):
-    permissions = await get_api_key_permissions(session, key_hash)
+async def check_model_access(session: AsyncSession, redis_client: Redis, key_hash: str, model_name: str):
+    permissions = await get_api_key_permissions(session, redis_client, key_hash)
     if permissions is None:
         return False
     
@@ -17,7 +18,7 @@ async def check_model_access(session: AsyncSession, key_hash: str, model_name: s
     
     return bool(permissions & (1 << model.permission_bit))
 
-async def grant_model_access(session: AsyncSession, key_hash: str, model_name: str):
+async def grant_model_access(session: AsyncSession, redis_client:Redis, key_hash: str, model_name: str):
     result = await session.execute(select(APIKey).where(APIKey.key_hash == key_hash))
     api_key = result.scalar_one_or_none()
     
@@ -28,12 +29,12 @@ async def grant_model_access(session: AsyncSession, key_hash: str, model_name: s
         await session.commit()
         
         # Update cache
-        await set_api_key(key_hash, api_key.model_permissions)
+        await set_api_key(redis_client, key_hash, api_key.model_permissions)
         return True
     
     return False
 
-async def revoke_model_access(session: AsyncSession, key_hash: str, model_name: str):
+async def revoke_model_access(session: AsyncSession, redis_client: Redis, key_hash: str, model_name: str):
     result = await session.execute(select(APIKey).where(APIKey.key_hash == key_hash))
     api_key = result.scalar_one_or_none()
     
@@ -44,7 +45,7 @@ async def revoke_model_access(session: AsyncSession, key_hash: str, model_name: 
         await session.commit()
         
         # Update cache
-        await set_api_key(key_hash, api_key.model_permissions)
+        await set_api_key(redis_client, key_hash, api_key.model_permissions)
         return True
     
     return False

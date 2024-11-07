@@ -1,22 +1,28 @@
 import redis.asyncio as redis
 from redis.asyncio.client import Redis
+from typing import Optional, Union
 
-redis_client: Redis = None
+async def get_api_key(redis_client: Redis, key_hash: str) -> Optional[bytes]:
+    try:
+        return await redis_client.get(f"api_key:{key_hash}")
+    except redis.RedisError as e:
+        raise Exception(f"Redis error while getting API key: {str(e)}")
 
-# FIXME load from lmos_config
-async def init_redis(host='localhost', port=6379, db=0):
-    global redis_client
-    redis_client = redis.Redis(host=host, port=port, db=db, decode_responses=True)
+async def set_api_key(redis_client: Redis, key_hash: str, permissions, ttl: int = 3600) -> None:
+    try:
+        await redis_client.set(f"api_key:{key_hash}", str(permissions), ex=ttl)
+    except redis.RedisError as e:
+        raise Exception(f"Redis error while setting API key: {str(e)}")
 
-async def get_api_key(key_hash: str):
-    return await redis_client.get(f"api_key:{key_hash}")
+async def delete_api_key(redis_client: Redis, key_hash: str) -> None:
+    try:
+        await redis_client.delete(f"api_key:{key_hash}")
+    except redis.RedisError as e:
+        raise Exception(f"Redis error while deleting API key: {str(e)}")
 
-async def set_api_key(key_hash: str, permissions: int, ttl: int = 3600):
-    await redis_client.set(f"api_key:{key_hash}", permissions, ex=ttl)
-
-async def delete_api_key(key_hash: str):
-    await redis_client.delete(f"api_key:{key_hash}")
-
-async def close_redis():
+async def close_redis(redis_client: Optional[Redis]) -> None:
     if redis_client:
-        await redis_client.close()
+        try:
+            await redis_client.close()
+        except redis.RedisError as e:
+            raise Exception(f"Redis error while closing connection: {str(e)}")
