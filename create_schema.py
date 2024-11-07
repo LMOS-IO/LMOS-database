@@ -3,7 +3,7 @@ from sqlalchemy_utils import database_exists, create_database
 from lmos_database_schema.tables import Base
 
 # Database connection URL
-DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/test_db"
+DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/lmos"
 
 def create_schema():
     # Create the engine
@@ -12,9 +12,9 @@ def create_schema():
     # Create database if it doesn't exist
     if not database_exists(engine.url):
         create_database(engine.url)
-        print(f"Created database 'test_db'")
+        print(f"Created database 'lmos'")
     else:
-        print(f"Database 'test_db' already exists")
+        print(f"Database 'lmos' already exists")
 
     # Create all tables
     Base.metadata.create_all(engine)
@@ -29,5 +29,5 @@ def drop_schema():
     print("Dropped all database tables")
 
 if __name__ == "__main__":
-    #drop_schema()
+    drop_schema()
     create_schema()
