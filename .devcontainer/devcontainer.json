@@ -6,7 +6,7 @@
 	"service": "app",
 	"workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
 	"features": {
-		"ghcr.io/devcontainers-extra/features/redis-homebrew:1": {}
+		"ghcr.io/itsmechlark/features/redis-server:1": {}
 	},
 	
 	// Features to add to the dev container. More info: https://containers.dev/features.
