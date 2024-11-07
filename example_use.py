@@ -23,6 +23,10 @@ from lmos_database_schema.actions.permissions import (
     grant_model_access, revoke_model_access, check_model_access
 )
 
+from lmos_database_schema.actions.usage import (
+    create_llm_usage, get_usage_by_api_key, get_usage_by_model_and_api_key
+)
+
 from lmos_database_schema.actions.redis_access import close_redis
 
 # Database settings
@@ -102,8 +106,33 @@ async def main():
 
         # Grant model access to the API key
         print("\n--- Granting Access ---")
-        granted = await grant_model_access(session, redis_client, new_api_key.key_hash, "GPT-4")
+        granted = await grant_model_access(
+            session, redis_client, new_api_key.key_hash, "GPT-4",
+            requests_per_minute=60, resource_quota_per_minute=60
+        )
         print(f"    Access Granted: {granted}")
+
+        # Apply some llm usage
+        print("\n--- Creating LLM Usage ---")
+        usage = await create_llm_usage(
+            session,
+            model_name="GPT-4",
+            api_key_hash=new_api_key.key_hash,
+            status_code=200,
+            new_prompt_tokens=100,
+            cache_prompt_tokens=0,
+            generated_tokens=50,
+            schema_gen_tokens=0,
+        )
+        print(f"    LLM Usage Created: {usage}")
+
+        # get rate limits for the API key and model
+
+        
+        # Get Usage by API Key
+        print("\n--- Getting Usage by API Key ---")
+        usage_by_api_key = await get_usage_by_api_key(session, new_api_key.key_hash)
+        print(f"    Usage by API Key: {usage_by_api_key}")
 
         # Check if access to model is available for the API key
         print("\n--- Checking Access Permissions ---")
