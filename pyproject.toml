@@ -3,9 +3,9 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lmos_database_schema"
+name = "lmos_database"
 version = "0.1.0"
-description = "Database ORM models for use in LMOS"
+description = "Database ORM models and actions for use in LMOS"
 license = { text = "Apache-2.0" }
 readme = "README.md"
 requires-python = ">=3.7"
@@ -19,11 +19,11 @@ dependencies = [
 
 [project.urls]
 homepage = "https://lmos.io/"
-repository = "https://github.com/LMOS-IO/LMOS-database-schema"
+repository = "https://github.com/LMOS-IO/LMOS-database"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["lmos_database_schema"]
+include = ["lmos_database"]
 
 [tool.setuptools]
-package-data = { "lmos_database_schema" = ["py.typed"] }
+package-data = { "lmos_database" = ["py.typed"] }
