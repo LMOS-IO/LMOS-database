@@ -23,7 +23,6 @@ repository = "https://github.com/LMOS-IO/LMOS-database"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["lmos_database"]
 
 [tool.setuptools]
 package-data = { "lmos_database" = ["py.typed"] }
