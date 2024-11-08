@@ -32,17 +32,20 @@ async def record_ratelimit_usage(
     """
     window_key = _get_window_key(key_hash, model_name)
     
-    async with redis_client.pipeline(transaction=True) as pipe:
-        # Create hash if it doesn't exist with TTL
-        await pipe.hsetnx(window_key, "requests", 0)
-        await pipe.hsetnx(window_key, "resources", 0)
-        await pipe.expire(window_key, RATE_LIMIT_WINDOW)
-        
-        # Increment both values
-        await pipe.hincrby(window_key, "requests", 1)
-        await pipe.hincrby(window_key, "resources", resources)
-        
-        await pipe.execute()
+    try:
+        async with redis_client.pipeline(transaction=True) as pipe:
+            # Create hash if it doesn't exist with TTL
+            await pipe.hsetnx(window_key, "requests", 0)
+            await pipe.hsetnx(window_key, "resources", 0)
+            await pipe.expire(window_key, RATE_LIMIT_WINDOW)
+            
+            # Increment both values
+            await pipe.hincrby(window_key, "requests", 1)
+            await pipe.hincrby(window_key, "resources", resources)
+            
+            await pipe.execute()
+    except Exception as e:
+        raise Exception(f"Failed to record rate limit usage: {str(e)}")
 
 async def get_current_limits(
     redis_client: Redis,
