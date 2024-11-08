@@ -24,10 +24,15 @@ from lmos_database_schema.actions.permissions import (
 )
 
 from lmos_database_schema.actions.usage import (
-    create_llm_usage, get_usage_by_api_key, get_usage_by_model_and_api_key
+    create_llm_usage, get_usage_by_api_key
+)
+
+from lmos_database_schema.actions.rate_limit import (
+    record_ratelimit_usage, get_current_limits
 )
 
 from lmos_database_schema.actions.redis_access import close_redis
+
 
 # Database settings
 DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost/lmos"
@@ -126,7 +131,27 @@ async def main():
         )
         print(f"    LLM Usage Created: {usage}")
 
-        # get rate limits for the API key and model
+        # Record usage
+        print("\n--- Recording Rate Limit Usage ---")
+        await record_ratelimit_usage(redis_client, "key123", "gpt-4", 150)  # 150 tokens
+
+        # # Check current usage
+        print("\n--- Getting Current Rate Limits ---")
+        rl_usage = await get_current_limits(redis_client, "key123", "gpt-4")
+        print(f"    Requests this minute: {rl_usage.requests}")
+        print(f"    Resources this minute: {rl_usage.resources}")
+        print(f"    Window resets in: {rl_usage.remaining_seconds} seconds")
+
+        # Wait for the rate limit to reset
+        print("\n--- Waiting for Rate Limit Reset ---")
+        await asyncio.sleep(61) # Wait for the rate limit to reset
+
+        # Rechecking rate limit after waiting
+        print("\n--- Getting Current Rate Limits After Waiting ---")
+        rl_usage = await get_current_limits(redis_client, "key123", "gpt-4")
+        print(f"    Requests this minute: {rl_usage.requests}")
+        print(f"    Resources this minute: {rl_usage.resources}")
+        print(f"    Window resets in: {rl_usage.remaining_seconds} seconds")
 
         
         # Get Usage by API Key
