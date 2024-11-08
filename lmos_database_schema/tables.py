@@ -1,29 +1,24 @@
 import uuid
 from sqlalchemy import (
-    BigInteger, Column, DateTime, ForeignKey, Index, Integer, String, Table, func
+    BigInteger, Column, DateTime, ForeignKey, Index, Integer, String, Table, func,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import relationship, DeclarativeBase, mapped_column, Mapped
 
-Base = declarative_base()
-
-api_key_model_association = Table('api_key_model', Base.metadata,
-    Column('api_key_hash', String(512), ForeignKey('api_keys.key_hash')),
-    Column('model_id', UUID(as_uuid=True), ForeignKey('model.id')),
-    Index('idx_api_key_model', 'api_key_hash', 'model_id')
-)
+class Base(DeclarativeBase):
+    pass
 
 # Users Table
 class User(Base):
     __tablename__ = 'users'
 
-    id = Column(Integer, primary_key=True)
-    username = Column(String, unique=True, nullable=False)
-    email = Column(String, unique=True, nullable=False)
-    password_hash = Column(String, nullable=False)
-    totp_secret = Column(String, nullable=True)
+    id: Mapped[int]  = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    totp_secret: Mapped[str] = mapped_column(String, nullable=True)
     api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     
     def __repr__(self):
         return f"<User(username='{self.username}', email='{self.email}')>"
@@ -31,11 +26,12 @@ class User(Base):
 # Model table
 class Model(Base):
     __tablename__ = 'model'
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String(255), unique=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    api_keys = relationship("APIKey", secondary=api_key_model_association, back_populates="models")
-    permission_bit = Column(Integer, unique=True, nullable=False)
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    api_key_associations = relationship("APIKeyModel", back_populates="model")
+    api_keys = relationship("APIKey", secondary="api_key_model", viewonly=True)
+    permission_bit: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
     rate_limits = relationship("APIKeyModelRateLimit", back_populates="model", cascade="all, delete-orphan")
 
     def __repr__(self):
@@ -44,10 +40,10 @@ class Model(Base):
 # Voice type table
 class VoiceType(Base):
     __tablename__ = 'voice_type'
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String(50), unique=True, nullable=False)
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     tts_usages = relationship("TTSUsage", back_populates="voice")
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):
         return f"<VoiceType(name='{self.name}')>"
@@ -56,10 +52,10 @@ class VoiceType(Base):
 class APIKeyModelRateLimit(Base):
     __tablename__ = 'api_key_model_rate_limits'
 
-    api_key_hash = Column(String(512), ForeignKey('api_keys.key_hash'), primary_key=True)
-    model_id = Column(UUID(as_uuid=True), ForeignKey('model.id'), primary_key=True)
-    requests_per_minute = Column(Integer, nullable=False)
-    resource_quota_per_minute = Column(Integer, nullable=False)  # tokens/seconds depending on model type
+    api_key_hash: Mapped[str] = mapped_column(String(512), ForeignKey('api_keys.key_hash'), primary_key=True)
+    model_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('model.id'), primary_key=True)
+    requests_per_minute: Mapped[int] = mapped_column(Integer, nullable=False)
+    resource_quota_per_minute: Mapped[int] = mapped_column(Integer, nullable=False)  # tokens/seconds depending on model type
 
     api_key = relationship("APIKey")
     model = relationship("Model")
@@ -72,17 +68,35 @@ class APIKeyModelRateLimit(Base):
         return f"<APIKeyModelRateLimit(api_key_hash='{self.api_key_hash}', model_id='{self.model_id}', " \
                f"requests_per_minute={self.requests_per_minute}, resource_quota_per_minute={self.resource_quota_per_minute})>"
 
+class APIKeyModel(Base):
+    __tablename__ = 'api_key_model'
+    
+    api_key_hash: Mapped[str] = mapped_column(String(512), ForeignKey('api_keys.key_hash'), primary_key=True)
+    model_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('model.id'), primary_key=True)
+    
+    # Add relationships to both sides
+    api_key = relationship("APIKey", back_populates="model_associations")
+    model = relationship("Model", back_populates="api_key_associations")
+    
+    __table_args__ = (
+        Index('idx_api_key_model', 'api_key_hash', 'model_id'),
+    )
+    
+    def __repr__(self):
+        return f"<APIKeyModel(api_key_hash='{self.api_key_hash}', model_id='{self.model_id}')>"
+
 # API Keys Table
 class APIKey(Base):
     __tablename__ = 'api_keys'
 
-    key_hash = Column(String(512), primary_key=True, unique=True, nullable=False)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    key_hash: Mapped[str] = mapped_column(String(512), primary_key=True, unique=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id'), nullable=False)
     user = relationship("User", back_populates="api_keys")
     usages = relationship("Usage", back_populates="api_key", cascade="all, delete-orphan")
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    models = relationship("Model", secondary=api_key_model_association, back_populates="api_keys")
-    model_permissions = Column(BigInteger, default=0)  # We'll keep this for efficient bitwise operations
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    model_associations = relationship("APIKeyModel", back_populates="api_key")
+    models = relationship("Model", secondary="api_key_model", viewonly=True)
+    model_permissions: Mapped[int] = mapped_column(BigInteger, default=0)  # We'll keep this for efficient bitwise operations
     rate_limits = relationship("APIKeyModelRateLimit", back_populates="api_key", cascade="all, delete-orphan")
 
     def __repr__(self):
@@ -91,14 +105,14 @@ class APIKey(Base):
 # Base class for Usage, with polymorphism
 class Usage(Base):
     __tablename__ = 'usage'
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    type = Column(String(50))
-    timestamp = Column(DateTime(timezone=True), server_default=func.now())
-    model_id = Column(UUID(as_uuid=True), ForeignKey('model.id'))
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    type: Mapped[str] = mapped_column(String(50))
+    timestamp: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    model_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('model.id'))
     model = relationship("Model")
-    api_key_hash = Column(String(512), ForeignKey('api_keys.key_hash'), nullable=False)
+    api_key_hash: Mapped[str] = mapped_column(String(512), ForeignKey('api_keys.key_hash'), nullable=False)
     api_key = relationship("APIKey", back_populates="usages")
-    status_code = Column(Integer, nullable=False)
+    status_code: Mapped[int] = mapped_column(Integer, nullable=False)
     
     def __repr__(self):
         return f"<Usage(type='{self.type}', timestamp='{self.timestamp}', model_id='{self.model_id}', api_key_hash='{self.api_key_hash}', status_code='{self.status_code}')>"
@@ -111,11 +125,11 @@ class Usage(Base):
 # Derived class for LLMUsage
 class LLMUsage(Usage):
     __tablename__ = 'llm_usage'
-    id = Column(UUID(as_uuid=True), ForeignKey('usage.id'), primary_key=True, default=uuid.uuid4)
-    new_prompt_tokens = Column(Integer)
-    cache_prompt_tokens = Column(Integer)
-    generated_tokens = Column(Integer)
-    schema_gen_tokens = Column(Integer)
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('usage.id'), primary_key=True, default=uuid.uuid4)
+    new_prompt_tokens: Mapped[int] = mapped_column(Integer)
+    cache_prompt_tokens: Mapped[int] = mapped_column(Integer)
+    generated_tokens: Mapped[int] = mapped_column(Integer)
+    schema_gen_tokens: Mapped[int] = mapped_column(Integer)
 
     def __repr__(self):
         return f"<LLMUsage(new_prompt_tokens='{self.new_prompt_tokens}', cache_prompt_tokens='{self.cache_prompt_tokens}', generated_tokens='{self.generated_tokens}', schema_gen_tokens='{self.schema_gen_tokens}')>"
@@ -127,8 +141,8 @@ class LLMUsage(Usage):
 # Derived class for STTUsage
 class STTUsage(Usage):
     __tablename__ = 'stt_usage'
-    id = Column(UUID(as_uuid=True), ForeignKey('usage.id'), primary_key=True, default=uuid.uuid4)
-    audio_length = Column(Integer)  # Length of the audio in seconds
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('usage.id'), primary_key=True, default=uuid.uuid4)
+    audio_length: Mapped[int] = mapped_column(Integer)  # Length of the audio in seconds
 
     def __repr__(self):
         return f"<STTUsage(audio_length='{self.audio_length}')>"
@@ -140,11 +154,11 @@ class STTUsage(Usage):
 # Derived class for TTSUsage
 class TTSUsage(Usage):
     __tablename__ = 'tts_usage'
-    id = Column(UUID(as_uuid=True), ForeignKey('usage.id'), primary_key=True, default=uuid.uuid4)
-    text_length = Column(Integer)  # Length of the text to synthesize
-    voice_type = Column(UUID(as_uuid=True), ForeignKey('voice_type.id'))
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('usage.id'), primary_key=True, default=uuid.uuid4)
+    text_length: Mapped[int] = mapped_column(Integer)  # Length of the text to synthesize
+    voice_type: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('voice_type.id'))
     voice = relationship("VoiceType", back_populates="tts_usages")
-    audio_length = Column(Integer)  # Length of the generated audio in seconds
+    audio_length: Mapped[int] = mapped_column(Integer)  # Length of the generated audio in seconds
 
     def __repr__(self):
         return f"<TTSUsage(text_length='{self.text_length}', voice_type='{self.voice_type}', audio_length='{self.audio_length}')>"
@@ -156,9 +170,9 @@ class TTSUsage(Usage):
 # Rebuilding the Derived class for ReRankerUsage
 class ReRankerUsage(Usage):
     __tablename__ = 'reranker_usage'
-    id = Column(UUID(as_uuid=True), ForeignKey('usage.id'), primary_key=True, default=uuid.uuid4)
-    num_candidates = Column(Integer)
-    selected_candidate = Column(Integer)  # Index of the selected candidate
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('usage.id'), primary_key=True, default=uuid.uuid4)
+    num_candidates: Mapped[int] = mapped_column(Integer)
+    selected_candidate: Mapped[int] = mapped_column(Integer)  # Index of the selected candidate
 
     def __repr__(self):
         return f"<ReRankerUsage(num_candidates='{self.num_candidates}', selected_candidate='{self.selected_candidate}')>"
