@@ -8,7 +8,7 @@ from typing import Optional
 
 from ..tables import Base
 
-async def init_database(db_url: str) -> None:
+async def lmos_init_database(db_url: str) -> None:
     """
     Initialize the database if it doesn't exist.
     This has to be done with a sync connection first.
@@ -22,7 +22,7 @@ async def init_database(db_url: str) -> None:
     else:
         print(f"Database '{url.database}' already exists")
 
-async def drop_database(db_url: str) -> None:
+async def lmos_drop_database(db_url: str) -> None:
     """
     Drop the entire database.
     This has to be done with a sync connection.
@@ -36,7 +36,7 @@ async def drop_database(db_url: str) -> None:
     else:
         print(f"Database '{url.database}' does not exist")
 
-async def create_schema(db_url: str, schema_name: Optional[str] = None) -> None:
+async def lmos_create_schema(db_url: str, schema_name: Optional[str] = None) -> None:
     """
     Create all tables in the specified schema.
     If no schema is specified, creates in public schema.
@@ -60,7 +60,7 @@ async def create_schema(db_url: str, schema_name: Optional[str] = None) -> None:
     finally:
         await engine.dispose()
 
-async def drop_tables(db_url: str, schema_name: Optional[str] = None) -> None:
+async def lmos_drop_tables(db_url: str, schema_name: Optional[str] = None) -> None:
     """
     Drop all tables in the specified schema.
     If no schema is specified, drops from public schema.
@@ -84,7 +84,7 @@ async def drop_tables(db_url: str, schema_name: Optional[str] = None) -> None:
     finally:
         await engine.dispose()
 
-async def verify_schema(db_url: str, schema_name: Optional[str] = None) -> bool:
+async def lmos_verify_schema(db_url: str, schema_name: Optional[str] = None) -> bool:
     """
     Verify that all tables exist and have correct structure.
     Returns True if verification passes.
@@ -126,12 +126,12 @@ async def verify_schema(db_url: str, schema_name: Optional[str] = None) -> bool:
     finally:
         await engine.dispose()
 
-async def reset_schema(db_url: str, schema_name: Optional[str] = None) -> None:
+async def lmos_reset_schema(db_url: str, schema_name: Optional[str] = None) -> None:
     """
     Drop and recreate all tables (fresh start).
     """
-    await drop_tables(db_url, schema_name)
-    await create_schema(db_url, schema_name)
+    await lmos_drop_tables(db_url, schema_name)
+    await lmos_create_schema(db_url, schema_name)
     print("Schema reset completed")
 
 if __name__ == "__main__":
@@ -139,12 +139,12 @@ if __name__ == "__main__":
         db_url = "postgresql+asyncpg://postgres:postgres@localhost/lmos"
         
         # Initialize database
-        await init_database(db_url)
+        await lmos_init_database(db_url)
         
         # Reset schema (drop and recreate)
-        await reset_schema(db_url)
+        await lmos_reset_schema(db_url)
         
         # Verify schema
-        await verify_schema(db_url)
+        await lmos_verify_schema(db_url)
 
     asyncio.run(main())
