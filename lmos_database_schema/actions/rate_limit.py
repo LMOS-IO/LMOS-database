@@ -23,7 +23,7 @@ async def record_ratelimit_usage(
 ) -> None:
     """
     Record usage for both requests and resources for the current minute window.
-    
+
     Args:
         redis_client: Redis client instance
         key_hash: The API key hash
@@ -31,18 +31,18 @@ async def record_ratelimit_usage(
         resources: Amount of resources being used (tokens, seconds, etc.)
     """
     window_key = _get_window_key(key_hash, model_name)
-    
+
     try:
         async with redis_client.pipeline(transaction=True) as pipe:
             # Create hash if it doesn't exist with TTL
-            await pipe.hsetnx(window_key, "requests", 0)
-            await pipe.hsetnx(window_key, "resources", 0)
+            await pipe.hsetnx(window_key, "requests", "0")
+            await pipe.hsetnx(window_key, "resources", "0")
             await pipe.expire(window_key, RATE_LIMIT_WINDOW)
-            
+
             # Increment both values
             await pipe.hincrby(window_key, "requests", 1)
             await pipe.hincrby(window_key, "resources", resources)
-            
+
             await pipe.execute()
     except Exception as e:
         raise Exception(f"Failed to record rate limit usage: {str(e)}")
@@ -64,22 +64,22 @@ async def get_current_limits(
         CurrentUsage with requests, resources, and seconds remaining in window
     """
     window_key = _get_window_key(key_hash, model_name)
-    
+
     try:
         # Get current values
         requests = await redis_client.hget(window_key, 'requests')
         resources = await redis_client.hget(window_key, 'resources')
-        
+
         # Calculate remaining time in window
         current_time = time.time()
         current_window_start = int(current_time / RATE_LIMIT_WINDOW) * RATE_LIMIT_WINDOW
         remaining_seconds = RATE_LIMIT_WINDOW - (int(current_time) - current_window_start)
-        
+
         return CurrentUsage(
             requests=int(requests) if requests else 0,
             resources=int(resources) if resources else 0,
             remaining_seconds=remaining_seconds
         )
-        
+
     except Exception as e:
         raise Exception(f"Failed to get current rate limits: {str(e)}")

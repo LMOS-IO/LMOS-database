@@ -28,7 +28,7 @@ async def create_api_key(session: AsyncSession, redis_client: Redis, user_id: in
     await session.commit()
     
     # Add to cache
-    await set_api_key(redis_client, new_api_key.key_hash, new_api_key.model_permissions)
+    await set_api_key(redis_client, str(new_api_key.key_hash), new_api_key.model_permissions)
     return new_api_key
 
 async def get_api_keys_by_user(session: AsyncSession, user_id: int):

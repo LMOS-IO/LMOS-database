@@ -10,7 +10,7 @@ from ..tables import (
 )
 
 @lru_cache(maxsize=None)
-async def _get_model_id_by_name(session: AsyncSession, model_name: str) -> Optional[UUID]:
+async def _get_model_id_by_name(session: AsyncSession, model_name: str):
     result = await session.execute(select(Model).where(Model.name == model_name))
     model = result.scalar_one_or_none()
     return model.id if model else None
