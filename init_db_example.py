@@ -1,4 +1,4 @@
-from lmos_database_schema.actions.db_init import lmos_init_database, lmos_reset_schema, lmos_verify_schema
+from lmos_database.actions.db_init import lmos_init_database, lmos_reset_schema, lmos_verify_schema
 import asyncio
 
 async def main():

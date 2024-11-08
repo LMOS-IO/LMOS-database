@@ -3,31 +3,31 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from redis.asyncio.client import Redis
-from lmos_database_schema.actions.user import(
+from lmos_database.actions.user import(
     create_user, get_all_users, get_user_by_username, delete_user_by_username
 )
 
-from lmos_database_schema.actions.model import (
+from lmos_database.actions.model import (
     create_model, get_all_models, get_model_by_name, delete_model_by_name
 )
 
-from lmos_database_schema.actions.apikey import (
+from lmos_database.actions.apikey import (
     create_api_key, get_api_key_permissions, delete_api_key_by_hash, get_api_keys_by_user
 )
 
-from lmos_database_schema.actions.permissions import (
+from lmos_database.actions.permissions import (
     grant_model_access, revoke_model_access, check_model_access
 )
 
-from lmos_database_schema.actions.usage import (
+from lmos_database.actions.usage import (
     create_llm_usage, get_usage_by_api_key
 )
 
-from lmos_database_schema.actions.rate_limit import (
+from lmos_database.actions.rate_limit import (
     record_ratelimit_usage, get_current_limits
 )
 
-from lmos_database_schema.actions.redis_access import close_redis
+from lmos_database.actions.redis_access import close_redis
 
 logging.basicConfig()
 logging.getLogger('sqlalchemy').setLevel(logging.ERROR)
