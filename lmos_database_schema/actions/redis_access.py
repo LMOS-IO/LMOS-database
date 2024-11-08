@@ -3,6 +3,8 @@ from redis.asyncio.client import Redis
 from typing import Optional, Dict, Any
 import json
 
+CACHE_TTL = 3600  # 1 hour in seconds
+
 async def get_api_key(redis_client: Redis, key_hash: str) -> Optional[bytes]:
     try:
         return await redis_client.get(f"api_key:{key_hash}")
@@ -21,7 +23,7 @@ async def set_model_access(
     key_hash: str, 
     model_name: str, 
     access_data: Dict[str, Any], 
-    ttl: int = 3600
+    ttl: int = CACHE_TTL
 ) -> None:
     try:
         await redis_client.set(
@@ -32,7 +34,9 @@ async def set_model_access(
     except redis.RedisError as e:
         raise Exception(f"Redis error while setting model access: {str(e)}")
 
-async def set_api_key(redis_client: Redis, key_hash: str, permissions, ttl: int = 3600) -> None:
+async def set_api_key(
+        redis_client: Redis, key_hash: str, permissions, ttl: int = CACHE_TTL
+) -> None:
     try:
         await redis_client.set(f"api_key:{key_hash}", str(permissions), ex=ttl)
     except redis.RedisError as e:
