@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from redis.asyncio.client import Redis
-from typing import Optional, Tuple, NamedTuple
+from typing import Optional, NamedTuple
 
 from ..tables import APIKey, APIKeyModelRateLimit
 from .apikey import get_api_key_permissions
