@@ -1,6 +1,6 @@
 import uuid
 from sqlalchemy import (
-    BigInteger, Column, DateTime, ForeignKey, Index, Integer, String, Table, func,
+    BigInteger, DateTime, ForeignKey, Index, Integer, String, func,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, DeclarativeBase, mapped_column, Mapped

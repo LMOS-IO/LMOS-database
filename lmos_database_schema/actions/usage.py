@@ -1,7 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import Optional
-from uuid import UUID
 from functools import lru_cache
 
 from ..tables import (

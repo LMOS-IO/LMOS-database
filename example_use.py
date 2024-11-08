@@ -3,10 +3,6 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from redis.asyncio.client import Redis
-
-logging.basicConfig()
-logging.getLogger('sqlalchemy').setLevel(logging.ERROR)
-
 from lmos_database_schema.actions.user import(
     create_user, get_all_users, get_user_by_username, delete_user_by_username
 )
@@ -32,6 +28,9 @@ from lmos_database_schema.actions.rate_limit import (
 )
 
 from lmos_database_schema.actions.redis_access import close_redis
+
+logging.basicConfig()
+logging.getLogger('sqlalchemy').setLevel(logging.ERROR)
 
 
 # Database settings
@@ -66,6 +65,7 @@ async def main():
             email="test@test.com",
             password_hash="test"
         )
+        print(f"    User Created: {new_user}")
 
         # Collect all user
         print("\n--- Getting All Users ---")
