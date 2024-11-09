@@ -52,12 +52,12 @@ class VoiceType(Base):
 class APIKeyModelRateLimit(Base):
     __tablename__ = 'api_key_model_rate_limits'
 
-    api_key_hash: Mapped[str] = mapped_column(String(512), ForeignKey('api_keys.key_hash'), primary_key=True)
+    api_key_hash: Mapped[str] = mapped_column(String(512), ForeignKey('api_keys.key_hash', ondelete="CASCADE"), primary_key=True)
     model_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('model.id'), primary_key=True)
     requests_per_minute: Mapped[int] = mapped_column(Integer, nullable=False)
-    resource_quota_per_minute: Mapped[int] = mapped_column(Integer, nullable=False)  # tokens/seconds depending on model type
+    resource_quota_per_minute: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    api_key = relationship("APIKey")
+    api_key = relationship("APIKey", passive_deletes=True)
     model = relationship("Model")
     
     __table_args__ = (
@@ -71,11 +71,10 @@ class APIKeyModelRateLimit(Base):
 class APIKeyModel(Base):
     __tablename__ = 'api_key_model'
     
-    api_key_hash: Mapped[str] = mapped_column(String(512), ForeignKey('api_keys.key_hash'), primary_key=True)
+    api_key_hash: Mapped[str] = mapped_column(String(512), ForeignKey('api_keys.key_hash', ondelete="CASCADE"), primary_key=True)
     model_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('model.id'), primary_key=True)
     
-    # Add relationships to both sides
-    api_key = relationship("APIKey", back_populates="model_associations")
+    api_key = relationship("APIKey", back_populates="model_associations", passive_deletes=True)
     model = relationship("Model", back_populates="api_key_associations")
     
     __table_args__ = (
@@ -91,12 +90,13 @@ class APIKey(Base):
 
     key_hash: Mapped[str] = mapped_column(String(512), primary_key=True, unique=True, nullable=False)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id'), nullable=False)
+    enabled: Mapped[bool] = mapped_column(default=True, nullable=False)
     user = relationship("User", back_populates="api_keys")
     usages = relationship("Usage", back_populates="api_key", cascade="all, delete-orphan")
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    model_associations = relationship("APIKeyModel", back_populates="api_key")
+    model_associations = relationship("APIKeyModel", back_populates="api_key", cascade="all, delete-orphan")
     models = relationship("Model", secondary="api_key_model", viewonly=True)
-    model_permissions: Mapped[int] = mapped_column(BigInteger, default=0)  # We'll keep this for efficient bitwise operations
+    model_permissions: Mapped[int] = mapped_column(BigInteger, default=0)
     rate_limits = relationship("APIKeyModelRateLimit", back_populates="api_key", cascade="all, delete-orphan")
 
     def __repr__(self):
@@ -110,8 +110,8 @@ class Usage(Base):
     timestamp: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     model_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('model.id'))
     model = relationship("Model")
-    api_key_hash: Mapped[str] = mapped_column(String(512), ForeignKey('api_keys.key_hash'), nullable=False)
-    api_key = relationship("APIKey", back_populates="usages")
+    api_key_hash: Mapped[str] = mapped_column(String(512), ForeignKey('api_keys.key_hash', ondelete="CASCADE"), nullable=False)
+    api_key = relationship("APIKey", back_populates="usages", passive_deletes=True)
     status_code: Mapped[int] = mapped_column(Integer, nullable=False)
     
     def __repr__(self):

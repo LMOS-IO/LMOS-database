@@ -1,73 +1,30 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from redis.asyncio.client import Redis
-from typing import Optional, NamedTuple
+from typing import Union
 
-from ..tables import APIKey, APIKeyModelRateLimit
-from .apikey import get_api_key_permissions
+from ..tables import APIKey, APIKeyModelRateLimit, APIKeyModel
 from .model import get_model_by_name
-from .redis_access import set_api_key, set_model_access, get_model_access
+from .redis_access_cache import CachedAPIHash, get_keycache_data, build_set_keycache_data
 
-class ModelAccess(NamedTuple):
-    valid_api_key: bool
-    has_permission: bool
-    model_exists: bool
-    requests_per_minute: Optional[int] = None
-    resource_quota_per_minute: Optional[int] = None
+async def get_api_permissions(session: AsyncSession, redis_client: Redis, key_hash: str) -> Union[CachedAPIHash, None]:
+    # check cache
+    keycache_data = await get_keycache_data(redis_client, key_hash)
+    if keycache_data:
+        print("Cache hit for key:", key_hash)
+        return keycache_data
+    
+    # If cache miss, then use build_set_keycache_data to attempt to collect it
 
-async def check_model_access(session: AsyncSession, redis_client: Redis, key_hash: str, model_name: str) -> ModelAccess:
-    # Try to get cached model access first
-    cached_access = await get_model_access(redis_client, key_hash, model_name)
-    if cached_access is not None:
-        return ModelAccess(
-            valid_api_key=cached_access['valid_api_key'],
-            has_permission=cached_access['has_permission'],
-            model_exists=cached_access.get('model_exists'),
-            requests_per_minute=cached_access.get('requests_per_minute'),
-            resource_quota_per_minute=cached_access.get('resource_quota_per_minute')
-        )
+    keycache_data = await build_set_keycache_data(session, redis_client, key_hash)
+
+    # If we still miss, return None
+    if not keycache_data:
+        return None
     
-    # If not in cache, check permissions and rate limits from DB
-    permissions = await get_api_key_permissions(session, redis_client, key_hash)
-    if permissions is None:
-        return ModelAccess(valid_api_key=False, has_permission=False, model_exists=False)
-    
-    model = await get_model_by_name(session, model_name)
-    if model is None:
-        return ModelAccess(valid_api_key=True, has_permission=False, model_exists=False)
-    
-    has_permission = bool(permissions & (1 << model.permission_bit))
-    
-    if not has_permission:
-        access_data = {'valid_api_key': True, 'has_permission': False, 'model_exists': True}
-        await set_model_access(redis_client, key_hash, model_name, access_data)
-        return ModelAccess(has_permission=False)
-    
-    # If has permission, fetch rate limits
-    result = await session.execute(
-        select(APIKeyModelRateLimit).where(
-            APIKeyModelRateLimit.api_key_hash == key_hash,
-            APIKeyModelRateLimit.model_id == model.id
-        )
-    )
-    rate_limit = result.scalar_one_or_none()
-    
-    access_data = {
-        'valid_api_key': True,
-        'has_permission': True,
-        'model_exists': True,
-        'requests_per_minute': rate_limit.requests_per_minute if rate_limit else None,
-        'resource_quota_per_minute': rate_limit.resource_quota_per_minute if rate_limit else None
-    }
-    
-    # Cache the results
-    await set_model_access(redis_client, key_hash, model_name, access_data)
-    
-    return ModelAccess(
-        has_permission=True,
-        requests_per_minute=rate_limit.requests_per_minute if rate_limit else None,
-        resource_quota_per_minute=rate_limit.resource_quota_per_minute if rate_limit else None
-    )
+    # If we have a hit, return the CachedAPIHash
+    print("Cache miss for key:", key_hash)
+    return keycache_data
 
 async def grant_model_access(
     session: AsyncSession, 
@@ -82,8 +39,8 @@ async def grant_model_access(
     api_key = result.scalar_one_or_none()
     
     # Validate the API key
-    if not api_key:
-        return False  # Invalid API key
+    if api_key is None or not api_key.enabled:
+        return False  # Invalid or disabled key API key
 
     # Fetch the model by name
     model = await get_model_by_name(session, model_name)
@@ -94,6 +51,22 @@ async def grant_model_access(
     
     # Set the model permission using the permission bit
     api_key.model_permissions |= (1 << model.permission_bit)
+    
+    # Create the model association if it doesn't exist
+    result = await session.execute(
+        select(APIKeyModel).where(
+            APIKeyModel.api_key_hash == key_hash,
+            APIKeyModel.model_id == model.id
+        )
+    )
+    model_association = result.scalar_one_or_none()
+    
+    if model_association is None:
+        model_association = APIKeyModel(
+            api_key_hash=key_hash,
+            model_id=model.id
+        )
+        session.add(model_association)
     
     # Create or update the rate limits for the key and model
     result = await session.execute(
@@ -120,19 +93,9 @@ async def grant_model_access(
     # Commit the changes to the database
     await session.commit()
     
-    # Update the API key cache
-    await set_api_key(redis_client, key_hash, api_key.model_permissions)
-    # Update model access cache
-    await set_model_access(redis_client, key_hash, model_name, {
-        'valid_api_key': True,
-        'has_permission': True,
-        'model_exists': True,
-        'requests_per_minute': requests_per_minute,
-        'resource_quota_per_minute': resource_quota_per_minute
-    })
-
+    # rebuild cache for the key
+    await build_set_keycache_data(session, redis_client, key_hash)
     return True
-
 
 async def revoke_model_access(session: AsyncSession, redis_client: Redis, key_hash: str, model_name: str) -> bool:
     # Fetch the API key from the database
@@ -140,7 +103,7 @@ async def revoke_model_access(session: AsyncSession, redis_client: Redis, key_ha
     api_key = result.scalar_one_or_none()
     
     # Validate the API key
-    if not api_key:
+    if api_key is None:
         return False  # Invalid API key
     
     # Fetch the model by name
@@ -156,14 +119,8 @@ async def revoke_model_access(session: AsyncSession, redis_client: Redis, key_ha
     # Commit the changes to the database
     await session.commit()
 
-    # Update the API key permissions in the cache
-    await set_api_key(redis_client, key_hash, api_key.model_permissions)
-    
-    # Update the model access cache to indicate the permission was revoked
-    await set_model_access(redis_client, key_hash, model_name, {
-        'valid_api_key': True,
-        'has_permission': False,
-        'model_exists': True
-    })
-
+    # rebuild cache for the key
+    await build_set_keycache_data(session, redis_client, key_hash)
     return True
+    
+    

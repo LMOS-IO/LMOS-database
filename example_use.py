@@ -12,11 +12,11 @@ from lmos_database.actions.model import (
 )
 
 from lmos_database.actions.apikey import (
-    create_api_key, get_api_key_permissions, delete_api_key_by_hash, get_api_keys_by_user
+    create_api_key, delete_api_key_by_hash, get_api_keys_by_user, disable_api_key_by_hash
 )
 
 from lmos_database.actions.permissions import (
-    grant_model_access, revoke_model_access, check_model_access
+    grant_model_access, revoke_model_access, get_api_permissions
 )
 
 from lmos_database.actions.usage import (
@@ -27,7 +27,7 @@ from lmos_database.actions.rate_limit import (
     record_ratelimit_usage, get_current_limits
 )
 
-from lmos_database.actions.redis_access import close_redis
+from lmos_database.actions.redis_access_cache import close_redis
 
 logging.basicConfig()
 logging.getLogger('sqlalchemy').setLevel(logging.ERROR)
@@ -106,7 +106,7 @@ async def main():
         print("\n--- Creating API Key ---")
         user_id = fetched_user.id
         example_hash_512 = "somehash"
-        new_api_key = await create_api_key(session, redis_client, user_id, api_hash=example_hash_512)
+        new_api_key = await create_api_key(session, user_id, api_hash=example_hash_512)
         print(f"    API Key Created: {new_api_key}")
 
         # Grant model access to the API key
@@ -161,7 +161,7 @@ async def main():
 
         # Check if access to model is available for the API key
         print("\n--- Checking Access Permissions ---")
-        has_access = await check_model_access(session, redis_client, new_api_key.key_hash, "GPT-4")
+        has_access = await get_api_permissions(session, redis_client, new_api_key.key_hash)
         print(f"    API Key has access: {has_access}")
 
         # Revoke model access from the API key
@@ -171,13 +171,18 @@ async def main():
 
         # Re-check access after revoking
         print("\n--- Checking Access After Revoke ---")
-        has_access_after_revoke = await check_model_access(session, redis_client, new_api_key.key_hash, "GPT-4")
+        has_access_after_revoke = await get_api_permissions(session, redis_client, new_api_key.key_hash)
         print(f"    API Key has access after revocation: {has_access_after_revoke}")
 
-        # Get API key permissions to see if storage and retrieval works
-        print("\n--- Get API Key Permissions ---")
-        permissions = await get_api_key_permissions(session, redis_client, new_api_key.key_hash)
-        print(f"    API Key Permissions: {permissions}")
+        # Disabling API Key
+        print("\n--- Disabling API Key ---")
+        disabled = await disable_api_key_by_hash(session, redis_client, new_api_key.key_hash)
+        print(f"    API Key Disabled: {disabled}")
+
+        # Re-check access after disabling
+        print("\n--- Checking Disabled API Key Access ---")
+        has_access_disabled = await get_api_permissions(session, redis_client, new_api_key.key_hash)
+        print(f"    API Key has access after disabling: {has_access_disabled}")
 
         # Delete the API key
         print("\n--- Deleting API Key ---")
@@ -186,7 +191,7 @@ async def main():
 
         # Re-check access after deletion
         print("\n--- Checking Non-existent API Key Access ---")
-        has_access_deleted = await check_model_access(session, redis_client, new_api_key.key_hash, "GPT-4")
+        has_access_deleted = await get_api_permissions(session, redis_client, new_api_key.key_hash)
         print(f"    API Key has access after deletion: {has_access_deleted}")
 
         # Delete the user

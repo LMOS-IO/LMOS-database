@@ -1,18 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import Optional
-from functools import lru_cache
 
 from ..tables import (
-    Usage, LLMUsage, STTUsage, TTSUsage, ReRankerUsage, 
-    Model, VoiceType
+    Usage, LLMUsage, STTUsage, TTSUsage, ReRankerUsage, VoiceType
 )
 
-@lru_cache(maxsize=None)
-async def _get_model_id_by_name(session: AsyncSession, model_name: str):
-    result = await session.execute(select(Model).where(Model.name == model_name))
-    model = result.scalar_one_or_none()
-    return model.id if model else None
+from .model import get_model_by_name
+
 
 # LLM Usage functions
 async def create_llm_usage(
@@ -25,12 +20,12 @@ async def create_llm_usage(
     generated_tokens: int,
     schema_gen_tokens: int
 ) -> Optional[LLMUsage]:
-    model_id = await _get_model_id_by_name(session, model_name)
-    if not model_id:
+    model = await get_model_by_name(session, model_name)
+    if not model.id:
         return None
     
     new_usage = LLMUsage(
-        model_id=model_id,
+        model_id=model.id,
         api_key_hash=api_key_hash,
         status_code=status_code,
         new_prompt_tokens=new_prompt_tokens,
@@ -50,12 +45,12 @@ async def create_stt_usage(
     status_code: int,
     audio_length: int
 ) -> Optional[STTUsage]:
-    model_id = await _get_model_id_by_name(session, model_name)
-    if not model_id:
+    model = await get_model_by_name(session, model_name)
+    if not model.id:
         return None
     
     new_usage = STTUsage(
-        model_id=model_id,
+        model_id=model.id,
         api_key_hash=api_key_hash,
         status_code=status_code,
         audio_length=audio_length
@@ -74,8 +69,8 @@ async def create_tts_usage(
     voice_name: str,
     audio_length: int
 ) -> Optional[TTSUsage]:
-    model_id = await _get_model_id_by_name(session, model_name)
-    if not model_id:
+    model = await get_model_by_name(session, model_name)
+    if not model.id:
         return None
     
     # Get voice type id
@@ -87,7 +82,7 @@ async def create_tts_usage(
         return None
     
     new_usage = TTSUsage(
-        model_id=model_id,
+        model_id=model.id,
         api_key_hash=api_key_hash,
         status_code=status_code,
         text_length=text_length,
@@ -107,12 +102,12 @@ async def create_reranker_usage(
     num_candidates: int,
     selected_candidate: int
 ) -> Optional[ReRankerUsage]:
-    model_id = await _get_model_id_by_name(session, model_name)
-    if not model_id:
+    model = await get_model_by_name(session, model_name)
+    if not model.id:
         return None
     
     new_usage = ReRankerUsage(
-        model_id=model_id,
+        model_id=model.id,
         api_key_hash=api_key_hash,
         status_code=status_code,
         num_candidates=num_candidates,
@@ -140,13 +135,13 @@ async def get_usage_by_model_and_api_key(
     model_name: str,
     usage_type: Optional[str] = None
 ):
-    model_id = await _get_model_id_by_name(session, model_name)
-    if not model_id:
+    model = await get_model_by_name(session, model_name)
+    if not model.id:
         return []
         
     query = select(Usage).where(
         Usage.api_key_hash == api_key_hash,
-        Usage.model_id == model_id
+        Usage.model_id == model.id
     )
     if usage_type:
         query = query.where(Usage.type == usage_type)
@@ -158,11 +153,11 @@ async def get_usage_by_model(
     model_name: str,
     usage_type: Optional[str] = None
 ):
-    model_id = await _get_model_id_by_name(session, model_name)
-    if not model_id:
+    model = await get_model_by_name(session, model_name)
+    if not model.id:
         return []
     
-    query = select(Usage).where(Usage.model_id == model_id)
+    query = select(Usage).where(Usage.model_id == model.id)
     if usage_type:
         query = query.where(Usage.type == usage_type)
     result = await session.execute(query)
