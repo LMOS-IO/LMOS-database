@@ -1,6 +1,6 @@
 import redis.asyncio as redis
 from redis.asyncio.client import Redis
-from typing import Optional, Union, Sequence
+from typing import Optional, Union
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -18,7 +18,7 @@ class ProvisionedModel(BaseModel):
     resource_quota_per_minute: Optional[int] = None
 
 class CachedAPIHash(BaseModel):
-    models: Sequence[ProvisionedModel]
+    models: dict[str, ProvisionedModel]
 
 async def build_set_keycache_data(session: AsyncSession, redis_client: Redis, api_key_hash: str) -> Union[CachedAPIHash, None]:
     # Fetch the API key from the database with all necessary relationships
@@ -37,9 +37,9 @@ async def build_set_keycache_data(session: AsyncSession, redis_client: Redis, ap
         # TODO Log if trying to build cache for a disabled API key
         return None # API key not found or disabled
 
-    provisioned_models = []
+    provisioned_models = {}  # Changed from list to dict
     for model in api_key.models:
-        # Find the rate limit for this model
+        # Find the rate limit for this model 
         rate_limit = next(
             (rl for rl in api_key.rate_limits if rl.model_id == model.id),
             None
@@ -51,11 +51,11 @@ async def build_set_keycache_data(session: AsyncSession, redis_client: Redis, ap
         # build the provisioned model object
         provisioned_model = ProvisionedModel(
             name=model.name,
-            access=has_access,
+            access=has_access, 
             requests_per_minute=rate_limit.requests_per_minute if rate_limit else None,
             resource_quota_per_minute=rate_limit.resource_quota_per_minute if rate_limit else None
         )
-        provisioned_models.append(provisioned_model)
+        provisioned_models[model.name] = provisioned_model  # Store by model name instead of appending
 
     # Create the CachedAPIHash object
     cached_api_hash = CachedAPIHash(models=provisioned_models)
