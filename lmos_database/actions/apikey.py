@@ -46,7 +46,7 @@ async def delete_api_key_by_hash(session: AsyncSession, redis_client: Redis, key
 )
     api_key = result.scalar_one_or_none()
 
-    if not api_key:
+    if api_key is None:
         # Return False if the API key doesn't exist
         return False
 
@@ -64,7 +64,7 @@ async def delete_api_key_by_hash(session: AsyncSession, redis_client: Redis, key
         
         if model_name:
             print(f"Deleting access for model: {model_name}")
-            await delete_model_access(redis_client, model_name)
+            await delete_model_access(redis_client, key_hash, model_name)
 
     # At this point, we've handled model cache removals; now delete the APIKey
     await session.delete(api_key)
