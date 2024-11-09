@@ -33,6 +33,12 @@ async def set_model_access(
         )
     except redis.RedisError as e:
         raise Exception(f"Redis error while setting model access: {str(e)}")
+    
+async def delete_model_access(redis_client: Redis, key_hash: str, model_name: str) -> None:
+    try:
+        await redis_client.delete(f"model_access:{key_hash}:{model_name}")
+    except redis.RedisError as e:
+        raise Exception(f"Redis error while deleting model access: {str(e)}")
 
 async def set_api_key(
         redis_client: Redis, key_hash: str, permissions, ttl: int = CACHE_TTL
