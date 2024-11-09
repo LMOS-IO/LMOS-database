@@ -14,7 +14,8 @@ dependencies = [
     "sqlalchemy-utils",
     "psycopg2-binary",
     "redis",
-    "asyncpg"
+    "asyncpg",
+    "pydantic"
 ]
 
 [project.urls]
