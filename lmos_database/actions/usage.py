@@ -1,6 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from typing import Optional
+from typing import Optional, Union, List, Dict
+from collections import defaultdict
+from pydantic import BaseModel
 
 from ..tables import (
     Usage, LLMUsage, STTUsage, TTSUsage, ReRankerUsage, VoiceType
@@ -8,34 +10,153 @@ from ..tables import (
 
 from .model import get_model_by_name
 
+# Pydantic base models
+class UsageBase(BaseModel):
+    model_name: str 
+    api_key_hash: str
+    status_code: int
+
+class LLMUsageCreate(UsageBase):
+    new_prompt_tokens: int
+    cache_prompt_tokens: int 
+    generated_tokens: int
+    schema_gen_tokens: int
+
+class STTUsageCreate(UsageBase):
+    audio_length: int
+
+class TTSUsageCreate(UsageBase):
+    text_length: int
+    voice_name: str
+    audio_length: int
+
+class ReRankerUsageCreate(UsageBase): 
+    num_candidates: int
+    selected_candidate: int
+
+UsageCreateType = Union[LLMUsageCreate, STTUsageCreate, TTSUsageCreate, ReRankerUsageCreate]
+
+async def create_bulk_usage(
+    session: AsyncSession,
+    usages: List[UsageCreateType]
+) -> Dict[str, List[Union[LLMUsage, STTUsage, TTSUsage, ReRankerUsage]]]:
+    """
+    Efficiently process bulk usage entries of various types.
+    Returns a dictionary of results grouped by usage type.
+    """
+    # Group usages by type for efficient processing
+    grouped_usages = defaultdict(list)
+    model_cache = {}
+    voice_cache = {}
+    results = defaultdict(list)
+
+    for usage in usages:
+        if isinstance(usage, LLMUsageCreate):
+            grouped_usages["llm"].append(usage)
+        elif isinstance(usage, STTUsageCreate):
+            grouped_usages["stt"].append(usage)
+        elif isinstance(usage, TTSUsageCreate):
+            grouped_usages["tts"].append(usage)
+        elif isinstance(usage, ReRankerUsageCreate):
+            grouped_usages["reranker"].append(usage)
+
+    # Process each type in bulk
+    for usage_type, items in grouped_usages.items():
+        if not items:
+            continue
+
+        # Fetch all required models at once
+        model_names = {item.model_name for item in items}
+        for model_name in model_names:
+            if model_name not in model_cache:
+                model = await get_model_by_name(session, model_name)
+                if not model or not model.id:
+                    continue
+                model_cache[model_name] = model
+
+        # For TTS, fetch all voice types at once
+        if usage_type == "tts":
+            voice_names = {item.voice_name for item in items}
+            voice_result = await session.execute(
+                select(VoiceType).where(VoiceType.name.in_(voice_names))
+            )
+            voice_cache = {voice.name: voice for voice in voice_result.scalars().all()}
+
+        # Create usage objects based on type
+        new_usages = []
+        for item in items:
+            model = model_cache.get(item.model_name)
+            if not model:
+                continue
+
+            if usage_type == "llm":
+                new_usage = LLMUsage(
+                    model_id=model.id,
+                    api_key_hash=item.api_key_hash,
+                    status_code=item.status_code,
+                    new_prompt_tokens=item.new_prompt_tokens,
+                    cache_prompt_tokens=item.cache_prompt_tokens,
+                    generated_tokens=item.generated_tokens,
+                    schema_gen_tokens=item.schema_gen_tokens
+                )
+            elif usage_type == "stt":
+                new_usage = STTUsage(
+                    model_id=model.id,
+                    api_key_hash=item.api_key_hash,
+                    status_code=item.status_code,
+                    audio_length=item.audio_length
+                )
+            elif usage_type == "tts":
+                voice = voice_cache.get(item.voice_name)
+                if not voice:
+                    continue
+                new_usage = TTSUsage(
+                    model_id=model.id,
+                    api_key_hash=item.api_key_hash,
+                    status_code=item.status_code,
+                    text_length=item.text_length,
+                    voice_type=voice.id,
+                    audio_length=item.audio_length
+                )
+            elif usage_type == "reranker":
+                new_usage = ReRankerUsage(
+                    model_id=model.id,
+                    api_key_hash=item.api_key_hash,
+                    status_code=item.status_code,
+                    num_candidates=item.num_candidates,
+                    selected_candidate=item.selected_candidate
+                )
+
+            new_usages.append(new_usage)
+            results[usage_type].append(new_usage)
+
+        if new_usages:
+            session.add_all(new_usages)
+
+    await session.commit()
+    return results
 
 # LLM Usage functions
 async def create_llm_usage(
     session: AsyncSession,
-    model_name: str,
-    api_key_hash: str,
-    status_code: int,
-    new_prompt_tokens: int,
-    cache_prompt_tokens: int,
-    generated_tokens: int,
-    schema_gen_tokens: int
+    usage: LLMUsageCreate
 ) -> Optional[LLMUsage]:
-    model = await get_model_by_name(session, model_name)
+    model = await get_model_by_name(session, usage.model_name)
 
     if not model:
-        raise ValueError(f"Model {model_name} not found")
+        raise ValueError(f"Model {usage.model_name} not found")
 
     if not model.id:
         return None
     
     new_usage = LLMUsage(
         model_id=model.id,
-        api_key_hash=api_key_hash,
-        status_code=status_code,
-        new_prompt_tokens=new_prompt_tokens,
-        cache_prompt_tokens=cache_prompt_tokens,
-        generated_tokens=generated_tokens,
-        schema_gen_tokens=schema_gen_tokens
+        api_key_hash=usage.api_key_hash,
+        status_code=usage.status_code,
+        new_prompt_tokens=usage.new_prompt_tokens,
+        cache_prompt_tokens=usage.cache_prompt_tokens,
+        generated_tokens=usage.generated_tokens,
+        schema_gen_tokens=usage.schema_gen_tokens
     )
     session.add(new_usage)
     await session.commit()
@@ -44,50 +165,42 @@ async def create_llm_usage(
 # STT Usage functions
 async def create_stt_usage(
     session: AsyncSession,
-    model_name: str,
-    api_key_hash: str,
-    status_code: int,
-    audio_length: int
+    usage: STTUsageCreate  
 ) -> Optional[STTUsage]:
-    model = await get_model_by_name(session, model_name)
+    model = await get_model_by_name(session, usage.model_name)
 
     if not model:
-        raise ValueError(f"Model {model_name} not found")
+        raise ValueError(f"Model {usage.model_name} not found")
     
     if not model.id:
         return None
     
     new_usage = STTUsage(
         model_id=model.id,
-        api_key_hash=api_key_hash,
-        status_code=status_code,
-        audio_length=audio_length
+        api_key_hash=usage.api_key_hash,
+        status_code=usage.status_code,
+        audio_length=usage.audio_length
     )
     session.add(new_usage)
     await session.commit()
     return new_usage
 
-# TTS Usage functions
+# TTS Usage functions  
 async def create_tts_usage(
     session: AsyncSession,
-    model_name: str,
-    api_key_hash: str,
-    status_code: int,
-    text_length: int,
-    voice_name: str,
-    audio_length: int
+    usage: TTSUsageCreate
 ) -> Optional[TTSUsage]:
-    model = await get_model_by_name(session, model_name)
+    model = await get_model_by_name(session, usage.model_name)
 
     if not model:
-        raise ValueError(f"Model {model_name} not found")
+        raise ValueError(f"Model {usage.model_name} not found")
     
     if not model.id:
         return None
     
     # Get voice type id
     voice_result = await session.execute(
-        select(VoiceType).where(VoiceType.name == voice_name)
+        select(VoiceType).where(VoiceType.name == usage.voice_name)
     )
     voice = voice_result.scalar_one_or_none()
     if not voice:
@@ -95,39 +208,35 @@ async def create_tts_usage(
     
     new_usage = TTSUsage(
         model_id=model.id,
-        api_key_hash=api_key_hash,
-        status_code=status_code,
-        text_length=text_length,
+        api_key_hash=usage.api_key_hash,
+        status_code=usage.status_code,
+        text_length=usage.text_length,
         voice_type=voice.id,
-        audio_length=audio_length
+        audio_length=usage.audio_length
     )
     session.add(new_usage)
     await session.commit()
     return new_usage
 
-# ReRanker Usage functions
+
 async def create_reranker_usage(
     session: AsyncSession,
-    model_name: str,
-    api_key_hash: str,
-    status_code: int,
-    num_candidates: int,
-    selected_candidate: int
+    usage: ReRankerUsageCreate
 ) -> Optional[ReRankerUsage]:
-    model = await get_model_by_name(session, model_name)
+    model = await get_model_by_name(session, usage.model_name)
 
     if not model:
-        raise ValueError(f"Model {model_name} not found")
+        raise ValueError(f"Model {usage.model_name} not found")
     
     if not model.id:
         return None
     
     new_usage = ReRankerUsage(
         model_id=model.id,
-        api_key_hash=api_key_hash,
-        status_code=status_code,
-        num_candidates=num_candidates,
-        selected_candidate=selected_candidate
+        api_key_hash=usage.api_key_hash,
+        status_code=usage.status_code,
+        num_candidates=usage.num_candidates,
+        selected_candidate=usage.selected_candidate
     )
     session.add(new_usage)
     await session.commit()
