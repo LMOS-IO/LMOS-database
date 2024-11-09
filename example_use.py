@@ -138,19 +138,19 @@ async def main():
         # # Check current usage
         print("\n--- Getting Current Rate Limits ---")
         rl_usage = await get_current_limits(redis_client, "key123", "gpt-4")
-        print(f"    Requests this minute: {rl_usage.requests}")
-        print(f"    Resources this minute: {rl_usage.resources}")
+        print(f"    Requests this minute: {rl_usage.current_requests_per_minute}")
+        print(f"    Resources this minute: {rl_usage.current_resource_quota_per_minute}")
         print(f"    Window resets in: {rl_usage.remaining_seconds} seconds")
 
         # Wait for the rate limit to reset
         print("\n--- Waiting for Rate Limit Reset ---")
-        await asyncio.sleep(61) # Wait for the rate limit to reset
+        await asyncio.sleep(rl_usage.remaining_seconds + 1) # Wait for the rate limit to reset
 
         # Rechecking rate limit after waiting
         print("\n--- Getting Current Rate Limits After Waiting ---")
         rl_usage = await get_current_limits(redis_client, "key123", "gpt-4")
-        print(f"    Requests this minute: {rl_usage.requests}")
-        print(f"    Resources this minute: {rl_usage.resources}")
+        print(f"    Requests this minute: {rl_usage.current_requests_per_minute}")
+        print(f"    Resources this minute: {rl_usage.current_resource_quota_per_minute}")
         print(f"    Window resets in: {rl_usage.remaining_seconds} seconds")
 
         
