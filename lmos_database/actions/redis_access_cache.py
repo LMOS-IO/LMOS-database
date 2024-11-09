@@ -1,6 +1,6 @@
 import redis.asyncio as redis
 from redis.asyncio.client import Redis
-from typing import Optional, List, Union
+from typing import Optional, Union, Sequence
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -18,7 +18,7 @@ class ProvisionedModel(BaseModel):
     resource_quota_per_minute: Optional[int] = None
 
 class CachedAPIHash(BaseModel):
-    models: List[ProvisionedModel]
+    models: Sequence[ProvisionedModel]
 
 async def build_set_keycache_data(session: AsyncSession, redis_client: Redis, api_key_hash: str) -> Union[CachedAPIHash, None]:
     # Fetch the API key from the database with all necessary relationships

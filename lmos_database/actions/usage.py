@@ -21,6 +21,10 @@ async def create_llm_usage(
     schema_gen_tokens: int
 ) -> Optional[LLMUsage]:
     model = await get_model_by_name(session, model_name)
+
+    if not model:
+        raise ValueError(f"Model {model_name} not found")
+
     if not model.id:
         return None
     
@@ -46,6 +50,10 @@ async def create_stt_usage(
     audio_length: int
 ) -> Optional[STTUsage]:
     model = await get_model_by_name(session, model_name)
+
+    if not model:
+        raise ValueError(f"Model {model_name} not found")
+    
     if not model.id:
         return None
     
@@ -70,6 +78,10 @@ async def create_tts_usage(
     audio_length: int
 ) -> Optional[TTSUsage]:
     model = await get_model_by_name(session, model_name)
+
+    if not model:
+        raise ValueError(f"Model {model_name} not found")
+    
     if not model.id:
         return None
     
@@ -103,6 +115,10 @@ async def create_reranker_usage(
     selected_candidate: int
 ) -> Optional[ReRankerUsage]:
     model = await get_model_by_name(session, model_name)
+
+    if not model:
+        raise ValueError(f"Model {model_name} not found")
+    
     if not model.id:
         return None
     
@@ -136,6 +152,10 @@ async def get_usage_by_model_and_api_key(
     usage_type: Optional[str] = None
 ):
     model = await get_model_by_name(session, model_name)
+
+    if not model:
+        raise ValueError(f"Model {model_name} not found")
+
     if not model.id:
         return []
         
@@ -154,6 +174,10 @@ async def get_usage_by_model(
     usage_type: Optional[str] = None
 ):
     model = await get_model_by_name(session, model_name)
+
+    if not model:
+        raise ValueError(f"Model {model_name} not found")
+
     if not model.id:
         return []
     

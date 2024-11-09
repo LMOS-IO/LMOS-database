@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from redis.asyncio.client import Redis
-from typing import List
+from typing import Sequence
 
 from ..tables import APIKey
 from .redis_access_cache import delete_keycache_data
@@ -13,8 +13,13 @@ async def create_api_key(session: AsyncSession, user_id: int, api_hash: str) -> 
     
     return new_api_key
 
-async def get_api_keys_by_user(session: AsyncSession, user_id: int) -> List[APIKey]:
-    result = await session.execute(select(APIKey).where(APIKey.user_id == user_id))
+async def get_api_keys_by_user(session: AsyncSession, user_id: int, include_disabled=False) -> Sequence[APIKey]:
+    if not include_disabled:
+        query = select(APIKey).where(APIKey.user_id == user_id, APIKey.enabled)
+    else:
+        query = select(APIKey).where(APIKey.user_id == user_id)
+
+    result = await session.execute(query)
     api_keys = result.scalars().all()
     return api_keys
 
