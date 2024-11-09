@@ -1,13 +1,13 @@
 from redis.asyncio.client import Redis
 import time
-from typing import NamedTuple
+from pydantic import BaseModel
 
 RATE_LIMIT_WINDOW = 60  # seconds
 RATE_LIMIT_PREFIX = "RateLimits"
 
-class CurrentUsage(NamedTuple):
-    requests: int
-    resources: int
+class CurrentUsage(BaseModel):
+    current_requests_per_minute: int
+    current_resource_quota_per_minute: int
     remaining_seconds: int
 
 def _get_window_key(key_hash: str, model_name: str) -> str:
@@ -35,13 +35,13 @@ async def record_ratelimit_usage(
     try:
         async with redis_client.pipeline(transaction=True) as pipe:
             # Create hash if it doesn't exist with TTL
-            await pipe.hsetnx(window_key, "requests", "0")
-            await pipe.hsetnx(window_key, "resources", "0")
+            await pipe.hsetnx(window_key, "current_requests_per_minute", "0")
+            await pipe.hsetnx(window_key, "current_resource_quota_per_minute", "0")
             await pipe.expire(window_key, RATE_LIMIT_WINDOW)
 
             # Increment both values
-            await pipe.hincrby(window_key, "requests", 1)
-            await pipe.hincrby(window_key, "resources", resources)
+            await pipe.hincrby(window_key, "current_requests_per_minute", 1)
+            await pipe.hincrby(window_key, "current_resource_quota_per_minute", resources)
 
             await pipe.execute()
     except Exception as e:
@@ -67,8 +67,8 @@ async def get_current_limits(
 
     try:
         # Get current values
-        requests = await redis_client.hget(window_key, 'requests')
-        resources = await redis_client.hget(window_key, 'resources')
+        current_requests_per_minute = await redis_client.hget(window_key, 'current_requests_per_minute')
+        current_resource_quota_per_minute = await redis_client.hget(window_key, 'current_resource_quota_per_minute')
 
         # Calculate remaining time in window
         current_time = time.time()
@@ -76,8 +76,8 @@ async def get_current_limits(
         remaining_seconds = RATE_LIMIT_WINDOW - (int(current_time) - current_window_start)
 
         return CurrentUsage(
-            requests=int(requests) if requests else 0,
-            resources=int(resources) if resources else 0,
+            current_requests_per_minute=int(current_requests_per_minute) if current_requests_per_minute else 0,
+            current_resource_quota_per_minute=int(current_resource_quota_per_minute) if current_resource_quota_per_minute else 0,
             remaining_seconds=remaining_seconds
         )
 
