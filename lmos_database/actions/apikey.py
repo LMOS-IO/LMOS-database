@@ -41,7 +41,7 @@ async def disable_api_key_by_hash(
     api_key = result.scalar_one_or_none()
     
     if api_key:
-        api_key.disabled = True
+        api_key.enabled = False
         await session.commit()
         
         # Remove from cache

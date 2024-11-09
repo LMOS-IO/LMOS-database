@@ -18,12 +18,11 @@ async def get_api_permissions(session: AsyncSession, redis_client: Redis, key_ha
 
     keycache_data = await build_set_keycache_data(session, redis_client, key_hash)
 
-    # If we still miss, return None
-    if not keycache_data:
+    # If we still miss with db, return None
+    if keycache_data is None:
         return None
     
     # If we have a hit, return the CachedAPIHash
-    print("Cache miss for key:", key_hash)
     return keycache_data
 
 async def grant_model_access(
@@ -40,6 +39,7 @@ async def grant_model_access(
     
     # Validate the API key
     if api_key is None or not api_key.enabled:
+        # TODO Log when key is disabled
         return False  # Invalid or disabled key API key
 
     # Fetch the model by name

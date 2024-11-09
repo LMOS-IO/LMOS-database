@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from ..tables import APIKey
 
+# TODO consider loading this from lmos_config
 CACHE_TTL = 3600  # 1 hour in seconds
 
 class ProvisionedModel(BaseModel):
@@ -32,9 +33,8 @@ async def build_set_keycache_data(session: AsyncSession, redis_client: Redis, ap
 
     api_key = result.scalar_one_or_none()
 
-    print(f"Key is: {APIKey.enabled}")
     if api_key is None or not api_key.enabled:
-        print(f"Key is: {APIKey.enabled}")
+        # TODO Log if trying to build cache for a disabled API key
         return None # API key not found or disabled
 
     provisioned_models = []
