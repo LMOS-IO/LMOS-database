@@ -51,7 +51,7 @@ async def delete_api_key_by_hash(session: AsyncSession, redis_client: Redis, key
         return False
 
     # Fetch the associated models through the APIKeyModel relationship
-    model_associations = api_key.models
+    model_associations = api_key.model_associations
     print(model_associations)
 
     print(f"Found {len(model_associations)} associations to delete for API key: {key_hash}")
