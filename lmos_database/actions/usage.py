@@ -243,15 +243,40 @@ async def create_reranker_usage(
     await session.commit()
     return new_usage
 
-# Generic usage query functions
+# Helper function to calculate offset based on page and limit
+def get_offset(page: int, limit: int) -> int:
+    return (page - 1) * limit
+
+# Pagination logic added (page, limit) to the queries
+
 async def get_usage_by_api_key(
     session: AsyncSession,
     api_key_hash: str,
-    usage_type: Optional[str] = None
-):
-    query = select(Usage).where(Usage.api_key_hash == api_key_hash)
+    usage_type: Optional[str] = None,
+    page: int = 1,
+    limit: int = 10
+) -> List[Usage]:
+    # Ensure the polymorphic entities (Usage subclasses) are loaded
+    usage_polymorphic = with_polymorphic(
+        Usage,  # Base class
+        [LLMUsage, STTUsage, TTSUsage, ReRankerUsage],  # Polymorphic child classes
+        aliased=True
+    )
+
+    # Prepare the query, eager load relationships and child classes
+    query = select(usage_polymorphic).options(
+        selectinload(usage_polymorphic.model),     # Eagerly load the model relationship
+        selectinload(usage_polymorphic.api_key)    # Eagerly load the api_key relationship
+    ).where(usage_polymorphic.api_key_hash == api_key_hash)
+
+    # Filter by usage type if provided
     if usage_type:
-        query = query.where(Usage.type == usage_type)
+        query = query.where(usage_polymorphic.type == usage_type)
+
+    # Add pagination (limit and offset)
+    query = query.limit(limit).offset(get_offset(page, limit))
+
+    # Execute the query and fetch the results
     result = await session.execute(query)
     return result.scalars().all()
 
@@ -259,8 +284,10 @@ async def get_usage_by_model_and_api_key(
     session: AsyncSession,
     api_key_hash: str,
     model_name: str,
-    usage_type: Optional[str] = None
-):
+    usage_type: Optional[str] = None,
+    page: int = 1,
+    limit: int = 10
+) -> List[Usage]:
     model = await get_model_by_name(session, model_name)
 
     if not model:
@@ -275,8 +302,8 @@ async def get_usage_by_model_and_api_key(
 
     # Prepare the query and use selectinload to load necessary relationships
     query = select(usage_polymorphic).options(
-        selectinload(usage_polymorphic.model),  # Eager load model relationship
-        selectinload(usage_polymorphic.api_key)  # Eager load api_key relationship
+        selectinload(usage_polymorphic.model),  # Eagerly load model relationship
+        selectinload(usage_polymorphic.api_key)  # Eagerly load api_key relationship
     ).where(
         usage_polymorphic.api_key_hash == api_key_hash,
         usage_polymorphic.model_id == model.id
@@ -284,6 +311,9 @@ async def get_usage_by_model_and_api_key(
     
     if usage_type:
         query = query.where(usage_polymorphic.type == usage_type)
+
+    # Add pagination (limit and offset)
+    query = query.limit(limit).offset(get_offset(page, limit))
 
     # Execute the query and ensure all data is loaded eagerly at query time
     result = await session.execute(query)
@@ -294,8 +324,11 @@ async def get_usage_by_model_and_api_key(
 async def get_usage_by_model(
     session: AsyncSession,
     model_name: str,
-    usage_type: Optional[str] = None
-):
+    usage_type: Optional[str] = None,
+    page: int = 1,
+    limit: int = 10
+) -> List[Usage]:
+    # Fetch the model by name
     model = await get_model_by_name(session, model_name)
 
     if not model:
@@ -303,9 +336,26 @@ async def get_usage_by_model(
 
     if not model.id:
         return []
-    
-    query = select(Usage).where(Usage.model_id == model.id)
+
+    # Ensure polymorphic load of Usage subclasses
+    usage_polymorphic = with_polymorphic(
+        Usage,  # Base class
+        [LLMUsage, STTUsage, TTSUsage, ReRankerUsage],  # The child polymorphic classes
+        aliased=True
+    )
+
+    # Prepare the query with eager-loading for relationships
+    query = select(usage_polymorphic).options(
+        selectinload(usage_polymorphic.model),     # Eagerly load the model relationship
+        selectinload(usage_polymorphic.api_key)    # Eagerly load the api_key relationship
+    ).where(usage_polymorphic.model_id == model.id)
+
     if usage_type:
-        query = query.where(Usage.type == usage_type)
+        query = query.where(usage_polymorphic.type == usage_type)
+
+    # Add pagination (limit and offset)
+    query = query.limit(limit).offset(get_offset(page, limit))
+
+    # Execute the query and return the result
     result = await session.execute(query)
     return result.scalars().all()
