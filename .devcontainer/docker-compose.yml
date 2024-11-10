@@ -1,4 +1,5 @@
 version: '3.8'
+name: ${NAME}-${COMPOSE_PROJECT_NAME}
 
 services:
   app:
