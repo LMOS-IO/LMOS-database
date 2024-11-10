@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from typing import Union, Sequence
+from typing import Optional, Sequence
 
 from ..tables import Model
 
@@ -10,11 +10,11 @@ async def create_model(session: AsyncSession, name: str, permission_bit: int) ->
     await session.commit()
     return new_model
 
-async def get_model_by_name(session: AsyncSession, model_name: str) -> Union[Model, None]:
+async def get_model_by_name(session: AsyncSession, model_name: str) -> Optional[Model]:
     result = await session.execute(select(Model).where(Model.name == model_name))
     return result.scalar_one_or_none()
 
-async def get_model_by_id(session: AsyncSession, model_id: int) -> Union[Model, None]:
+async def get_model_by_id(session: AsyncSession, model_id: int) -> Optional[Model]:
     result = await session.execute(select(Model).where(Model.id == model_id))
     return result.scalar_one_or_none()
 

@@ -20,7 +20,9 @@ class ProvisionedModel(BaseModel):
 class CachedAPIHash(BaseModel):
     models: dict[str, ProvisionedModel]
 
-async def build_set_keycache_data(session: AsyncSession, redis_client: Redis, api_key_hash: str) -> Union[CachedAPIHash, None]:
+async def build_set_keycache_data(
+        session: AsyncSession, redis_client: Redis, api_key_hash: str
+) -> Optional[CachedAPIHash]:
     # Fetch the API key from the database with all necessary relationships
     result = await session.execute(
         select(APIKey)
@@ -70,7 +72,7 @@ async def set_keycache_data(redis_client: Redis, api_hash: str, data: CachedAPIH
     except redis.RedisError as e:
         raise Exception(f"Redis error while setting key data: {str(e)}")
 
-async def get_keycache_data(redis_client: Redis, api_hash: str) -> Union[CachedAPIHash, None]:
+async def get_keycache_data(redis_client: Redis, api_hash: str) -> Optional[CachedAPIHash]:
     try:
         data = await redis_client.get(api_hash)
         if data:

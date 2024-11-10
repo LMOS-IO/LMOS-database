@@ -1,13 +1,15 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from redis.asyncio.client import Redis
-from typing import Union
+from typing import Optional
 
 from ..tables import APIKey, APIKeyModelRateLimit, APIKeyModel
 from .model import get_model_by_name
 from .redis_access_cache import CachedAPIHash, get_keycache_data, build_set_keycache_data
 
-async def get_api_permissions(session: AsyncSession, redis_client: Redis, key_hash: str) -> Union[CachedAPIHash, None]:
+async def get_api_permissions(
+        session: AsyncSession, redis_client: Redis, key_hash: str
+) -> Optional[CachedAPIHash]:
     # check cache
     keycache_data = await get_keycache_data(redis_client, key_hash)
     if keycache_data:
@@ -18,10 +20,6 @@ async def get_api_permissions(session: AsyncSession, redis_client: Redis, key_ha
 
     keycache_data = await build_set_keycache_data(session, redis_client, key_hash)
 
-    # If we still miss with db, return None
-    if keycache_data is None:
-        return None
-    
     # If we have a hit, return the CachedAPIHash
     return keycache_data
 
