@@ -20,7 +20,7 @@ from lmos_database.actions.permissions import (
 )
 
 from lmos_database.actions.usage import (
-    create_llm_usage, get_usage_by_api_key
+    create_llm_usage, get_usage_by_api_key, create_bulk_usage, get_usage_by_model_and_api_key, LLMUsageEntry, get_usage_by_model
 )
 
 from lmos_database.actions.rate_limit import (
@@ -118,9 +118,7 @@ async def main():
         print(f"    Access Granted: {granted}")
 
         # Apply some llm usage
-        print("\n--- Creating LLM Usage ---")
-        usage = await create_llm_usage(
-            session,
+        entry1 = LLMUsageEntry(
             model_name="GPT-4",
             api_key_hash=new_api_key.key_hash,
             status_code=200,
@@ -129,7 +127,48 @@ async def main():
             generated_tokens=50,
             schema_gen_tokens=0,
         )
+        entry2 = LLMUsageEntry(
+            model_name="GPT-4",
+            api_key_hash=new_api_key.key_hash,
+            status_code=200,
+            new_prompt_tokens=100,
+            cache_prompt_tokens=0,
+            generated_tokens=50,
+            schema_gen_tokens=0,
+        )
+        print("\n--- Creating LLM Usage ---")
+
+        usage = await create_llm_usage(
+            session,
+            entry1
+        )
         print(f"    LLM Usage Created: {usage}")
+
+        # Create bulk usage
+        print("\n--- Creating Bulk LLM Usage ---")
+        entries = [entry1, entry2]
+        await create_bulk_usage(session, entries)
+
+        # Get usage by model and API key
+        print("\n--- Getting Usage by Model and API Key ---")
+        usage_by_model_and_api_key = await get_usage_by_model_and_api_key(
+            session, new_api_key.key_hash, "GPT-4", page=1, limit=10)
+        for usage_row in usage_by_model_and_api_key:
+            print(f"    Usage: {usage_row}")
+
+        # Get usage by model
+        print("\n--- Getting Usage by Model ---")
+        usage_by_model = await get_usage_by_model(session, "GPT-4", page=1, limit=10)
+        for usage_row in usage_by_model:
+            print(f"    Usage: {usage_row}")
+
+        # Get usage by API key but with a limit of 2 per page and loop
+        print("\n--- Getting Usage by API Key with Pagination ---")
+        for page in range(1, 3):  # Assuming there are more than 2 pages
+            usage_by_api_key = await get_usage_by_api_key(session, new_api_key.key_hash, page=page, limit=2)
+            print(f"    Usage Page {page}: {usage_by_api_key}")
+            if len(usage_by_api_key) < 2:
+                break
 
         # Record usage
         print("\n--- Recording Rate Limit Usage ---")
