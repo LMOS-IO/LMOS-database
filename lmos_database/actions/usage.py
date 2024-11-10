@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload, with_polymorphic
 from typing import Optional, Union, List, Dict
 from collections import defaultdict
 from pydantic import BaseModel
@@ -265,17 +266,30 @@ async def get_usage_by_model_and_api_key(
     if not model:
         raise ValueError(f"Model {model_name} not found")
 
-    if not model.id:
-        return []
-        
-    query = select(Usage).where(
-        Usage.api_key_hash == api_key_hash,
-        Usage.model_id == model.id
+    # Define a polymorphic load of all subtypes of Usage  
+    usage_polymorphic = with_polymorphic(
+        Usage,  # Base class
+        [LLMUsage, STTUsage, TTSUsage, ReRankerUsage],  # Polymorphic child classes
+        aliased=True
     )
+
+    # Prepare the query and use selectinload to load necessary relationships
+    query = select(usage_polymorphic).options(
+        selectinload(usage_polymorphic.model),  # Eager load model relationship
+        selectinload(usage_polymorphic.api_key)  # Eager load api_key relationship
+    ).where(
+        usage_polymorphic.api_key_hash == api_key_hash,
+        usage_polymorphic.model_id == model.id
+    )
+    
     if usage_type:
-        query = query.where(Usage.type == usage_type)
+        query = query.where(usage_polymorphic.type == usage_type)
+
+    # Execute the query and ensure all data is loaded eagerly at query time
     result = await session.execute(query)
-    return result.scalars().all()
+    rows = result.scalars().all()
+
+    return rows
 
 async def get_usage_by_model(
     session: AsyncSession,
