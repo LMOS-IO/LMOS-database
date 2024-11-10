@@ -16,29 +16,29 @@ class UsageBase(BaseModel):
     api_key_hash: str
     status_code: int
 
-class LLMUsageCreate(UsageBase):
+class LLMUsageEntry(UsageBase):
     new_prompt_tokens: int
     cache_prompt_tokens: int 
     generated_tokens: int
     schema_gen_tokens: int
 
-class STTUsageCreate(UsageBase):
+class STTUsageEntry(UsageBase):
     audio_length: int
 
-class TTSUsageCreate(UsageBase):
+class TTSUsageEntry(UsageBase):
     text_length: int
     voice_name: str
     audio_length: int
 
-class ReRankerUsageCreate(UsageBase): 
+class ReRankerUsageEntry(UsageBase): 
     num_candidates: int
     selected_candidate: int
 
-UsageCreateType = Union[LLMUsageCreate, STTUsageCreate, TTSUsageCreate, ReRankerUsageCreate]
+UsageEntryType = Union[LLMUsageEntry, STTUsageEntry, TTSUsageEntry, ReRankerUsageEntry]
 
 async def create_bulk_usage(
     session: AsyncSession,
-    usages: List[UsageCreateType]
+    usages: List[UsageEntryType]
 ) -> Dict[str, List[Union[LLMUsage, STTUsage, TTSUsage, ReRankerUsage]]]:
     """
     Efficiently process bulk usage entries of various types.
@@ -51,13 +51,13 @@ async def create_bulk_usage(
     results = defaultdict(list)
 
     for usage in usages:
-        if isinstance(usage, LLMUsageCreate):
+        if isinstance(usage, LLMUsageEntry):
             grouped_usages["llm"].append(usage)
-        elif isinstance(usage, STTUsageCreate):
+        elif isinstance(usage, STTUsageEntry):
             grouped_usages["stt"].append(usage)
-        elif isinstance(usage, TTSUsageCreate):
+        elif isinstance(usage, TTSUsageEntry):
             grouped_usages["tts"].append(usage)
-        elif isinstance(usage, ReRankerUsageCreate):
+        elif isinstance(usage, ReRankerUsageEntry):
             grouped_usages["reranker"].append(usage)
 
     # Process each type in bulk
@@ -82,7 +82,7 @@ async def create_bulk_usage(
             )
             voice_cache = {voice.name: voice for voice in voice_result.scalars().all()}
 
-        # Create usage objects based on type
+        # Entry usage objects based on type
         new_usages = []
         for item in items:
             model = model_cache.get(item.model_name)
@@ -139,7 +139,7 @@ async def create_bulk_usage(
 # LLM Usage functions
 async def create_llm_usage(
     session: AsyncSession,
-    usage: LLMUsageCreate
+    usage: LLMUsageEntry
 ) -> Optional[LLMUsage]:
     model = await get_model_by_name(session, usage.model_name)
 
@@ -165,7 +165,7 @@ async def create_llm_usage(
 # STT Usage functions
 async def create_stt_usage(
     session: AsyncSession,
-    usage: STTUsageCreate  
+    usage: STTUsageEntry  
 ) -> Optional[STTUsage]:
     model = await get_model_by_name(session, usage.model_name)
 
@@ -188,7 +188,7 @@ async def create_stt_usage(
 # TTS Usage functions  
 async def create_tts_usage(
     session: AsyncSession,
-    usage: TTSUsageCreate
+    usage: TTSUsageEntry
 ) -> Optional[TTSUsage]:
     model = await get_model_by_name(session, usage.model_name)
 
@@ -221,7 +221,7 @@ async def create_tts_usage(
 
 async def create_reranker_usage(
     session: AsyncSession,
-    usage: ReRankerUsageCreate
+    usage: ReRankerUsageEntry
 ) -> Optional[ReRankerUsage]:
     model = await get_model_by_name(session, usage.model_name)
 
