@@ -1,6 +1,6 @@
 import redis.asyncio as redis
 from redis.asyncio.client import Redis
-from typing import Optional, Union
+from typing import Optional
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
