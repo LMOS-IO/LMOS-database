@@ -67,11 +67,31 @@ async def main():
         )
         print(f"    User Created: {new_user}")
 
+                # Create User
+        print("\n--- Creating User ---")
+        new_user = await create_user(
+            session,
+            username="TestAccount2",
+            email="test2@test.com",
+            password_hash="test"
+        )
+        print(f"    User Created: {new_user}")
+
+        # Collect a specific user for deleting via id
+        print("\n--- Fetching User by Username ---")
+        fetched_user_delete = await get_user_by_username(session, username="TestAccount2")
+        print(f"    User Found: {fetched_user_delete}")
+
         # Collect all user
         print("\n--- Getting All Users ---")
         users = await get_all_users(session)
         for user in users:
             print(f"   {user}")
+
+        # Delete via ID
+        print("\n--- Delete by ID ---")
+        deleted_user_by_id = await delete_user_by_id(session, fetched_user_delete.id)
+        print(f"   User Deleted by ID: {deleted_user_by_id}")
 
         # Collect a specific user
         print("\n--- Fetching User by Username ---")

@@ -89,7 +89,7 @@ class APIKey(Base):
     __tablename__ = 'api_keys'
 
     key_hash: Mapped[str] = mapped_column(String(512), primary_key=True, unique=True, nullable=False)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id'), nullable=False)
+    user_id: Mapped[UUID] = mapped_column(UUID, ForeignKey('users.id'), nullable=False)
     enabled: Mapped[bool] = mapped_column(default=True, nullable=False)
     user = relationship("User", back_populates="api_keys")
     usages = relationship("Usage", back_populates="api_key", cascade="all, delete-orphan")
@@ -113,7 +113,6 @@ class Usage(Base):
     api_key_hash: Mapped[str] = mapped_column(String(512), ForeignKey('api_keys.key_hash', ondelete="CASCADE"), nullable=False)
     api_key = relationship("APIKey", back_populates="usages", passive_deletes=True)
     status_code: Mapped[int] = mapped_column(Integer, nullable=False)
-    priority: Mapped[int] = mapped_column(Integer, nullable=False, server_default=0)
     
     def __repr__(self):
         return f"<Usage(type='{self.type}', timestamp='{self.timestamp}', model_id='{self.model_id}', api_key_hash='{self.api_key_hash}', status_code='{self.status_code}')>"
