@@ -105,6 +105,12 @@ async def main():
         fetched_model = await get_model_by_name(session, model_name="GPT-4")
         print(f"    Model Found: {fetched_model}")
 
+        # Fetch a model by id
+        # FIXME: this does not work/type hint correctly because model ID is UUID not int
+        # print("\n--- Fetching Model by ID ---")
+        # fetched_model = await get_model_by_id(session, 1)
+        # print(f"    Model Found: {fetched_model}")
+
         # Get all api keys for the test user and delete them
         print("\n--- Getting API Keys for User ---")
         api_keys = await get_api_keys_by_user(session, fetched_user.id)
