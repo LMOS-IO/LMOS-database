@@ -8,7 +8,7 @@ from lmos_database.actions.user import(
 )
 
 from lmos_database.actions.model import (
-    create_model, get_model_by_name, get_model_by_id, get_all_models, delete_user_by_id, delete_model_by_name
+    create_model, get_model_by_name, get_model_by_id, get_all_models, delete_model_by_id, delete_model_by_name
 )
 
 from lmos_database.actions.apikey import (
@@ -76,6 +76,16 @@ async def main():
         # Collect a specific user
         print("\n--- Fetching User by Username ---")
         fetched_user = await get_user_by_username(session, username="TestAccount")
+        print(f"    User Found: {fetched_user}")
+
+        # Collect a specific user via email
+        print("\n--- Fetching User by Email ---")
+        fetched_user = await get_user_by_email(session, "test@test.com")
+        print(f"    User Found: {fetched_user}")
+
+        # Collect a specific user via id
+        print("\n--- Fetching User by ID ---")
+        fetched_user = await get_user_by_id(session, 1)
         print(f"    User Found: {fetched_user}")
 
         # Create a model
