@@ -12,7 +12,7 @@ class Base(DeclarativeBase):
 class User(Base):
     __tablename__ = 'users'
 
-    id: Mapped[int]  = mapped_column(Integer, primary_key=True)
+    id: Mapped[UUID]  = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
@@ -106,13 +106,14 @@ class APIKey(Base):
 class Usage(Base):
     __tablename__ = 'usage'
     id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    type: Mapped[str] = mapped_column(String(50))
+    type: Mapped[str] = mapped_column(String(20))
     timestamp: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     model_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('model.id'))
     model = relationship("Model")
     api_key_hash: Mapped[str] = mapped_column(String(512), ForeignKey('api_keys.key_hash', ondelete="CASCADE"), nullable=False)
     api_key = relationship("APIKey", back_populates="usages", passive_deletes=True)
     status_code: Mapped[int] = mapped_column(Integer, nullable=False)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, server_default=0)
     
     def __repr__(self):
         return f"<Usage(type='{self.type}', timestamp='{self.timestamp}', model_id='{self.model_id}', api_key_hash='{self.api_key_hash}', status_code='{self.status_code}')>"

@@ -85,7 +85,7 @@ async def main():
 
         # Collect a specific user via id
         print("\n--- Fetching User by ID ---")
-        fetched_user = await get_user_by_id(session, 1)
+        fetched_user = await get_user_by_id(session, fetched_user.id)
         print(f"    User Found: {fetched_user}")
 
         # Create a model
@@ -106,10 +106,9 @@ async def main():
         print(f"    Model Found: {fetched_model}")
 
         # Fetch a model by id
-        # FIXME: this does not work/type hint correctly because model ID is UUID not int
-        # print("\n--- Fetching Model by ID ---")
-        # fetched_model = await get_model_by_id(session, 1)
-        # print(f"    Model Found: {fetched_model}")
+        print("\n--- Fetching Model by ID ---")
+        fetched_model = await get_model_by_id(session, fetched_model.id)
+        print(f"    Model Found: {fetched_model}")
 
         # Get all api keys for the test user and delete them
         print("\n--- Getting API Keys for User ---")

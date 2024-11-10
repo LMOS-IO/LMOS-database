@@ -1,4 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import select
 
 from ..tables import User
@@ -24,7 +25,7 @@ async def get_user_by_email(session: AsyncSession, email: str):
     result = await session.execute(query)
     return result.scalar_one_or_none()
 
-async def get_user_by_id(session: AsyncSession, user_id: int):
+async def get_user_by_id(session: AsyncSession, user_id: UUID):
     query = select(User).where(User.id == user_id)
     result = await session.execute(query)
     return result.scalar_one_or_none()
@@ -34,7 +35,7 @@ async def get_all_users(session: AsyncSession):
     result = await session.execute(query)
     return result.scalars().all()
 
-async def delete_user_by_id(session: AsyncSession, user_id: int):
+async def delete_user_by_id(session: AsyncSession, user_id: UUID):
     query = select(User).where(User.id == user_id)
     result = await session.execute(query)
     user = result.scalar_one_or_none()

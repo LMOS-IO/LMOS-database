@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.dialects.postgresql import UUID
 from typing import Optional, Sequence
 
 from ..tables import Model
@@ -14,7 +15,7 @@ async def get_model_by_name(session: AsyncSession, model_name: str) -> Optional[
     result = await session.execute(select(Model).where(Model.name == model_name))
     return result.scalar_one_or_none()
 
-async def get_model_by_id(session: AsyncSession, model_id: int) -> Optional[Model]:
+async def get_model_by_id(session: AsyncSession, model_id: UUID) -> Optional[Model]:
     result = await session.execute(select(Model).where(Model.id == model_id))
     return result.scalar_one_or_none()
 
