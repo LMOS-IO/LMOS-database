@@ -13,7 +13,6 @@ async def get_api_permissions(
     # check cache
     keycache_data = await get_keycache_data(redis_client, key_hash)
     if keycache_data:
-        print("Cache hit for key:", key_hash)
         return keycache_data
     
     # If cache miss, then use build_set_keycache_data to attempt to collect it
