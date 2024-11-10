@@ -5,13 +5,15 @@ from typing import Sequence
 
 from ..tables import APIKey
 from .redis_access_cache import delete_keycache_data
+from .hash import generate_api_key, hash_str
 
-async def create_api_key(session: AsyncSession, user_id: int, api_hash: str) -> APIKey:
+async def create_api_key(session: AsyncSession, user_id: int) -> str:
+    new_key = generate_api_key()
+    api_hash = hash_str(new_key, is_api_key=True)
     new_api_key = APIKey(user_id=user_id, key_hash=api_hash)
     session.add(new_api_key)
     await session.commit()
-    
-    return new_api_key
+    return new_key
 
 async def get_api_keys_by_user(session: AsyncSession, user_id: int, include_disabled=False) -> Sequence[APIKey]:
     if not include_disabled:

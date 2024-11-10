@@ -27,6 +27,10 @@ from lmos_database.actions.rate_limit import (
     record_ratelimit_usage, get_current_limits
 )
 
+from lmos_database.actions.hash import (
+    hash_str
+)
+
 from lmos_database.actions.redis_access_cache import close_redis
 
 logging.basicConfig()
@@ -45,7 +49,7 @@ redis_client = Redis(
     db=0, password=None
 )
 
-# Example functions calling the actions in actions.py 
+# Example functions calling the actions in actions.py
 
 async def main():
     async with AsyncSessionLocal() as session:
@@ -67,7 +71,7 @@ async def main():
         )
         print(f"    User Created: {new_user}")
 
-                # Create User
+        # Create User
         print("\n--- Creating User ---")
         new_user = await create_user(
             session,
@@ -140,14 +144,14 @@ async def main():
         # Creating an API Key
         print("\n--- Creating API Key ---")
         user_id = fetched_user.id
-        example_hash_512 = "somehash"
-        new_api_key = await create_api_key(session, user_id, api_hash=example_hash_512)
+        new_api_key = await create_api_key(session, user_id)
+        hashed_key = hash_str(new_api_key, is_api_key=True)
         print(f"    API Key Created: {new_api_key}")
 
         # Grant model access to the API key
         print("\n--- Granting Access ---")
         granted = await grant_model_access(
-            session, redis_client, new_api_key.key_hash, "GPT-4",
+            session, redis_client, hashed_key, "GPT-4",
             requests_per_minute=60, resource_quota_per_minute=60
         )
         print(f"    Access Granted: {granted}")
@@ -155,7 +159,7 @@ async def main():
         # Apply some llm usage
         entry1 = LLMUsageEntry(
             model_name="GPT-4",
-            api_key_hash=new_api_key.key_hash,
+            api_key_hash=hashed_key,
             status_code=200,
             new_prompt_tokens=100,
             cache_prompt_tokens=0,
@@ -164,7 +168,7 @@ async def main():
         )
         entry2 = LLMUsageEntry(
             model_name="GPT-4",
-            api_key_hash=new_api_key.key_hash,
+            api_key_hash=hashed_key,
             status_code=200,
             new_prompt_tokens=100,
             cache_prompt_tokens=0,
@@ -187,7 +191,7 @@ async def main():
         # Get usage by model and API key
         print("\n--- Getting Usage by Model and API Key ---")
         usage_by_model_and_api_key = await get_usage_by_model_and_api_key(
-            session, new_api_key.key_hash, "GPT-4", page=1, limit=10)
+            session, hashed_key, "GPT-4", page=1, limit=10)
         for usage_row in usage_by_model_and_api_key:
             print(f"    Usage: {usage_row}")
 
@@ -200,7 +204,7 @@ async def main():
         # Get usage by API key but with a limit of 2 per page and loop
         print("\n--- Getting Usage by API Key with Pagination ---")
         for page in range(1, 3):  # Assuming there are more than 2 pages
-            usage_by_api_key = await get_usage_by_api_key(session, new_api_key.key_hash, page=page, limit=2)
+            usage_by_api_key = await get_usage_by_api_key(session, hashed_key, page=page, limit=2)
             print(f"    Usage Page {page}: {usage_by_api_key}")
             if len(usage_by_api_key) < 2:
                 break
@@ -230,42 +234,42 @@ async def main():
         
         # Get Usage by API Key
         print("\n--- Getting Usage by API Key ---")
-        usage_by_api_key = await get_usage_by_api_key(session, new_api_key.key_hash)
+        usage_by_api_key = await get_usage_by_api_key(session, hashed_key)
         print(f"    Usage by API Key: {usage_by_api_key}")
 
         # Check if access to model is available for the API key
         print("\n--- Checking Access Permissions ---")
-        has_access = await get_api_permissions(session, redis_client, new_api_key.key_hash)
+        has_access = await get_api_permissions(session, redis_client, hashed_key)
         print(f"    API Key has access: {has_access}")
 
         # Revoke model access from the API key
         print("\n--- Revoking Access ---")
-        revoked = await revoke_model_access(session, redis_client, new_api_key.key_hash, "GPT-4")
+        revoked = await revoke_model_access(session, redis_client, hashed_key, "GPT-4")
         print(f"    Access Revoked: {revoked}")
 
         # Re-check access after revoking
         print("\n--- Checking Access After Revoke ---")
-        has_access_after_revoke = await get_api_permissions(session, redis_client, new_api_key.key_hash)
+        has_access_after_revoke = await get_api_permissions(session, redis_client, hashed_key)
         print(f"    API Key has access after revocation: {has_access_after_revoke}")
 
         # Disabling API Key
         print("\n--- Disabling API Key ---")
-        disabled = await disable_api_key_by_hash(session, redis_client, new_api_key.key_hash)
+        disabled = await disable_api_key_by_hash(session, redis_client, hashed_key)
         print(f"    API Key Disabled: {disabled}")
 
         # Re-check access after disabling
         print("\n--- Checking Disabled API Key Access ---")
-        has_access_disabled = await get_api_permissions(session, redis_client, new_api_key.key_hash)
+        has_access_disabled = await get_api_permissions(session, redis_client, hashed_key)
         print(f"    API Key has access after disabling: {has_access_disabled}")
 
         # Delete the API key
         print("\n--- Deleting API Key ---")
-        deleted = await delete_api_key_by_hash(session, redis_client, new_api_key.key_hash)
+        deleted = await delete_api_key_by_hash(session, redis_client, hashed_key)
         print(f"    API Key Deleted: {deleted}")
 
         # Re-check access after deletion
         print("\n--- Checking Non-existent API Key Access ---")
-        has_access_deleted = await get_api_permissions(session, redis_client, new_api_key.key_hash)
+        has_access_deleted = await get_api_permissions(session, redis_client, hashed_key)
         print(f"    API Key has access after deletion: {has_access_deleted}")
 
         # Delete the user

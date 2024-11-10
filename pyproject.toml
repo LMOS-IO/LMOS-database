@@ -15,7 +15,8 @@ dependencies = [
     "psycopg2-binary",
     "redis",
     "asyncpg",
-    "pydantic"
+    "pydantic",
+    "lmos_config @ git+https://github.com/LMOS-IO/LMOS-config"
 ]
 
 [project.urls]
