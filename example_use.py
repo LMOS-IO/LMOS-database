@@ -4,15 +4,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from redis.asyncio.client import Redis
 from lmos_database.actions.user import(
-    create_user, get_all_users, get_user_by_username, delete_user_by_username
+    create_user, get_user_by_username, get_user_by_email, get_user_by_id, get_all_users, delete_user_by_id, delete_user_by_username
 )
 
 from lmos_database.actions.model import (
-    create_model, get_all_models, get_model_by_name, delete_model_by_name
+    create_model, get_model_by_name, get_model_by_id, get_all_models, delete_user_by_id, delete_model_by_name
 )
 
 from lmos_database.actions.apikey import (
-    create_api_key, delete_api_key_by_hash, get_api_keys_by_user, disable_api_key_by_hash
+    create_api_key, get_api_keys_by_user, delete_api_key_by_hash, disable_api_key_by_hash
 )
 
 from lmos_database.actions.permissions import (
@@ -20,7 +20,7 @@ from lmos_database.actions.permissions import (
 )
 
 from lmos_database.actions.usage import (
-    create_llm_usage, get_usage_by_api_key, create_bulk_usage, get_usage_by_model_and_api_key, LLMUsageEntry, get_usage_by_model
+    create_llm_usage, get_usage_by_api_key, create_stt_usage, create_bulk_usage, get_usage_by_model_and_api_key, LLMUsageEntry, get_usage_by_model, create_reranker_usage, create_tts_usage
 )
 
 from lmos_database.actions.rate_limit import (
