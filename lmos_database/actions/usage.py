@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from ..tables import (
     Usage, LLMUsage, STTUsage, TTSUsage, ReRankerUsage, VoiceType
 )
+from ..clients.database import db_manager
 
 from .model import get_model_by_name
 
@@ -38,7 +39,6 @@ class ReRankerUsageEntry(UsageBase):
 UsageEntryType = Union[LLMUsageEntry, STTUsageEntry, TTSUsageEntry, ReRankerUsageEntry]
 
 async def create_bulk_usage(
-    session: AsyncSession,
     usages: List[UsageEntryType]
 ) -> Dict[str, List[Union[LLMUsage, STTUsage, TTSUsage, ReRankerUsage]]]:
     """
@@ -51,90 +51,92 @@ async def create_bulk_usage(
     voice_cache = {}
     results = defaultdict(list)
 
-    for usage in usages:
-        if isinstance(usage, LLMUsageEntry):
-            grouped_usages["llm"].append(usage)
-        elif isinstance(usage, STTUsageEntry):
-            grouped_usages["stt"].append(usage)
-        elif isinstance(usage, TTSUsageEntry):
-            grouped_usages["tts"].append(usage)
-        elif isinstance(usage, ReRankerUsageEntry):
-            grouped_usages["reranker"].append(usage)
+    with db_manager.Session() as session:
 
-    # Process each type in bulk
-    for usage_type, items in grouped_usages.items():
-        if not items:
-            continue
+        for usage in usages:
+            if isinstance(usage, LLMUsageEntry):
+                grouped_usages["llm"].append(usage)
+            elif isinstance(usage, STTUsageEntry):
+                grouped_usages["stt"].append(usage)
+            elif isinstance(usage, TTSUsageEntry):
+                grouped_usages["tts"].append(usage)
+            elif isinstance(usage, ReRankerUsageEntry):
+                grouped_usages["reranker"].append(usage)
 
-        # Fetch all required models at once
-        model_names = {item.model_name for item in items}
-        for model_name in model_names:
-            if model_name not in model_cache:
-                model = await get_model_by_name(session, model_name)
-                if not model or not model.id:
-                    continue
-                model_cache[model_name] = model
-
-        # For TTS, fetch all voice types at once
-        if usage_type == "tts":
-            voice_names = {item.voice_name for item in items}
-            voice_result = await session.execute(
-                select(VoiceType).where(VoiceType.name.in_(voice_names))
-            )
-            voice_cache = {voice.name: voice for voice in voice_result.scalars().all()}
-
-        # Entry usage objects based on type
-        new_usages = []
-        for item in items:
-            model = model_cache.get(item.model_name)
-            if not model:
+        # Process each type in bulk
+        for usage_type, items in grouped_usages.items():
+            if not items:
                 continue
 
-            if usage_type == "llm":
-                new_usage = LLMUsage(
-                    model_id=model.id,
-                    api_key_hash=item.api_key_hash,
-                    status_code=item.status_code,
-                    new_prompt_tokens=item.new_prompt_tokens,
-                    cache_prompt_tokens=item.cache_prompt_tokens,
-                    generated_tokens=item.generated_tokens,
-                    schema_gen_tokens=item.schema_gen_tokens
+            # Fetch all required models at once
+            model_names = {item.model_name for item in items}
+            for model_name in model_names:
+                if model_name not in model_cache:
+                    model = await get_model_by_name(session, model_name)
+                    if not model or not model.id:
+                        continue
+                    model_cache[model_name] = model
+
+            # For TTS, fetch all voice types at once
+            if usage_type == "tts":
+                voice_names = {item.voice_name for item in items}
+                voice_result = await session.execute(
+                    select(VoiceType).where(VoiceType.name.in_(voice_names))
                 )
-            elif usage_type == "stt":
-                new_usage = STTUsage(
-                    model_id=model.id,
-                    api_key_hash=item.api_key_hash,
-                    status_code=item.status_code,
-                    audio_length=item.audio_length
-                )
-            elif usage_type == "tts":
-                voice = voice_cache.get(item.voice_name)
-                if not voice:
+                voice_cache = {voice.name: voice for voice in voice_result.scalars().all()}
+
+            # Entry usage objects based on type
+            new_usages = []
+            for item in items:
+                model = model_cache.get(item.model_name)
+                if not model:
                     continue
-                new_usage = TTSUsage(
-                    model_id=model.id,
-                    api_key_hash=item.api_key_hash,
-                    status_code=item.status_code,
-                    text_length=item.text_length,
-                    voice_type=voice.id,
-                    audio_length=item.audio_length
-                )
-            elif usage_type == "reranker":
-                new_usage = ReRankerUsage(
-                    model_id=model.id,
-                    api_key_hash=item.api_key_hash,
-                    status_code=item.status_code,
-                    num_candidates=item.num_candidates,
-                    selected_candidate=item.selected_candidate
-                )
 
-            new_usages.append(new_usage)
-            results[usage_type].append(new_usage)
+                if usage_type == "llm":
+                    new_usage = LLMUsage(
+                        model_id=model.id,
+                        api_key_hash=item.api_key_hash,
+                        status_code=item.status_code,
+                        new_prompt_tokens=item.new_prompt_tokens,
+                        cache_prompt_tokens=item.cache_prompt_tokens,
+                        generated_tokens=item.generated_tokens,
+                        schema_gen_tokens=item.schema_gen_tokens
+                    )
+                elif usage_type == "stt":
+                    new_usage = STTUsage(
+                        model_id=model.id,
+                        api_key_hash=item.api_key_hash,
+                        status_code=item.status_code,
+                        audio_length=item.audio_length
+                    )
+                elif usage_type == "tts":
+                    voice = voice_cache.get(item.voice_name)
+                    if not voice:
+                        continue
+                    new_usage = TTSUsage(
+                        model_id=model.id,
+                        api_key_hash=item.api_key_hash,
+                        status_code=item.status_code,
+                        text_length=item.text_length,
+                        voice_type=voice.id,
+                        audio_length=item.audio_length
+                    )
+                elif usage_type == "reranker":
+                    new_usage = ReRankerUsage(
+                        model_id=model.id,
+                        api_key_hash=item.api_key_hash,
+                        status_code=item.status_code,
+                        num_candidates=item.num_candidates,
+                        selected_candidate=item.selected_candidate
+                    )
 
-        if new_usages:
-            session.add_all(new_usages)
+                new_usages.append(new_usage)
+                results[usage_type].append(new_usage)
 
-    await session.commit()
+            if new_usages:
+                session.add_all(new_usages)
+
+        await session.commit()
     return results
 
 # LLM Usage functions
